@@ -1,0 +1,575 @@
+研发总结
+目录
+0. 同步情况	3
+1.Kafka	4
+1.1 golang调用kafka常用第三方库	4
+1.2 注意事项	5
+1.3 自带脚本的常用命令方法	5
+1.3.1创建一个带有3个副本的topic	5
+1.3.2 查看所有的topic	6
+1.3.3查看某个topic的内容	6
+2. Scp	6
+2.1服务器与本地之间传输文件	6
+3. Go	6
+3.1本地编译生成bin文件	6
+3.2 环境搭建	7
+3.3 struc参数校验框架	7
+3.4 对官方database/sql 库的分析	7
+3.5 限流框架	7
+3.6 proto生成go文件	7
+3.7常用方法封装	8
+3.7.1获取当天的零点	8
+3.8 vendor	8
+4. ab压测工具	9
+4.1使用命令示例	9
+4.1.1示例1	9
+4.1.2 示例2	9
+5. 端口号被占用排查方法	9
+5.1 mac	9
+6. Docker	10
+6.1 centos7安装docker	10
+6.2 docker hub账号	10
+7. Redis	10
+7.1环境搭建	10
+8. Git	11
+8.1 环境搭建	11
+8.2 常用的git命令	11
+8.2.1 撤销commit	11
+8.2.2 代码提交到远程仓库	11
+8.2.3 删除已经添加到暂存区的无用的文件	11
+8.2.4 从远程仓库拉取最新代码	11
+8.2.5 提交本地新建的分支到远程仓库	12
+8.2.6 把某次commit提交到远程另外一个分支	13
+8.2.7 您的分支领先 'origin/master' 共 x 个提交	13
+9.MySQL	14
+9.1 mac下环境搭建	14
+9.2 授权	14
+9.3 连接远程数据库	14
+10. 技术栈	15
+10.1 后端	15
+10.2 前端	15
+11. 架构相关	15
+11.1前后端分离交互	15
+11.2 后端分层后请求处理流程	16
+11.3 多协议请求交互	17
+12. hash算法	17
+12.1 murmurhash	17
+13. Elasticsearch	18
+13.1 centos7 搭建Elasticsearch集群环境	18
+1.配置jdk环境变量	18
+2. 创建相关的日志和数据目录	18
+3. 创建用于启动ES的用户	18
+4. 修改配置文件	18
+14. HomeBrew	19
+14.1 禁止自动更新	19
+15. Linux	19
+15.1常用命令	19
+15.1.1端口被占用查看	19
+16.Scala	19
+16.1 mac搭建scala开发环境	19
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+0.同步情况
+目前在伊对是实时同步这个文档的
+度小满的工作记录总结已经同步到了这个文档
+在掌趣的工作记录还没有同步到这个文档
+1.Kafka
+1.1 golang调用kafka常用第三方库
+https://github.com/bsm/sarama-cluster
+
+
+在主页有使用方法的示例代码，如果想要采用多线程的方式来使用，可以使用下面的代码
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+
+	cluster "github.com/bsm/sarama-cluster"
+)
+
+func main() {
+
+	// init (custom) config, enable errors and notifications
+	config := cluster.NewConfig()
+	config.Consumer.Return.Errors = true
+	config.Group.Return.Notifications = true
+
+	// init consumer
+	brokers := []string{"127.0.0.1:9092"}
+	topics := []string{"my_topic", "other_topic"}
+	consumer, err := cluster.NewConsumer(brokers, "my-consumer-group", topics, config)
+	if err != nil {
+		panic(err)
+	}
+	defer consumer.Close()
+
+	// trap SIGINT to trigger a shutdown.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+
+	// consume errors
+	go func() {
+		for err := range consumer.Errors() {
+			log.Printf("Error: %s\n", err.Error())
+		}
+	}()
+
+	// consume notifications
+	go func() {
+		for ntf := range consumer.Notifications() {
+			log.Printf("Rebalanced: %+v\n", ntf)
+		}
+	}()
+
+	// consume messages, watch signals
+	for {
+		select {
+		case msg, ok := <-consumer.Messages():
+			if ok {
+				fmt.Fprintf(os.Stdout, "%s/%d/%d\t%s\t%s\n", msg.Topic, msg.Partition, msg.Offset, msg.Key, msg.Value)
+				consumer.MarkOffset(msg, "")	// mark message as processed
+			}
+		case <-signals:
+			return
+		}
+	}
+}
+
+
+1.2 注意事项
+topic的命名尽量不要包含下划线
+
+
+1.3 自带脚本的常用命令方法
+1.3.1创建一个带有3个副本的topic
+sh kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 3 --partitions 1 --topic mytopic
+
+
+1.3.2 查看所有的topic
+sh kafka-topics.sh --list --zookeeper localhost:2182
+
+1.3.3查看某个topic的内容
+sh kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic "topic name" --from-beginning
+
+
+1.3.4 向指定topic中写入内容
+sh kafka-console-producer.sh --broker-list 127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094 --topic yd_test_live_porn
+
+
+1.3.5 创建消费者组
+sh kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic yd_test_live_porn --consumer-property group.id=JianHuangTest
+
+
+1.3.6 创建生产者
+sh kafka-console-producer.sh --broker-list localhost:9092 --topic yd_test_live_porn
+
+
+
+1.3.7 创建topic
+bin/kafka-topics.sh --create --topic topicname --replication-factor 1 --partitions 1 --zookeeper localhost:2181
+–topic指定topic name
+–partitions指定分区数，这个参数需要根据broker数和数据量决定，正常情况下，每个broker上两个partition最好；
+–replication-factor指定partition的replicas数，建议设置为2；
+2.Scp
+2.1服务器与本地之间传输文件
+由本地向服务器传输文件:本地终端执行
+scp 文件路径 go-test:/home/cuiguangsong/
+由服务器向本地传输文件:服务端执行
+scp go-test:/home/cuiguangsong/XXX localpath
+
+
+
+3.Go
+3.1本地编译生成bin文件
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build
+
+GOOS=linux GOARCH=amd64 go build
+
+
+3.2 环境搭建
+1.https://studygolang.com/dl下载安装包并安装
+2.Vim ~/.bash_profile 添加以下内容
+export GOPATH=/Users/cuiguangsong/my_files/workspace/go
+export GOBIN=$GPPATH/bin
+export PATH=$PATH:$GOBIN
+
+3.source ~/.bash_profile
+4.执行go env 查看配置是否生效
+
+3.3 struc参数校验框架
+github地址
+https://github.com/go-playground/validator
+
+该框架可以对前端传过来的结构体中的参数进行校验，自己不要在手动写那些校验的函数
+
+
+3.4 对官方database/sql 库的分析
+http://go-database-sql.org/
+
+
+3.5 限流框架
+https://github.com/juju/ratelimit
+
+3.6 proto生成go文件
+protoc --go_out=plugins=grpc:. hello.proto
+
+3.7常用方法封装
+3.7.1获取当天的零点
+func GetTodayTimeZero(t time.Time) (string, error) {
+	timeStr := t.Format("2006-01-02")
+	res, err := time.ParseInLocation("2006-01-02 15:04:05", timeStr+" 00:00:00", time.Local)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to call ParseInLocation,reason=[%v]", err)
+		logger.Warn(errMsg)
+		return "", errors.New(errMsg)
+
+	}
+	return res.Format("2006-01-02 15:04:05"), nil
+}
+
+
+
+3.8 vendor
+#初始化vendor目录
+govendor init
+
+govendor add +e
+
+更新vendor
+govendor update
+
+
+
+
+
+
+4.ab压测工具
+4.1使用命令示例
+4.1.1示例1
+ab -n 1  -c 10 -p /Users/cuiguangsong/my_files/scripts/post.txt -T 'application/json '
+-H 'https://test-apis.520yidui.com/t7/v3/rc/wow_good_luck'
+
+4.1.2 示例2
+ab -H "ApiKey:7e08df24" -H "Brand:vivo" -H "Channel:mp-xxl-cyz-01" -H "CodeTag:yidui-7.0.1"    -H "DeviceId:40090926-565f-4e7e-8630-2da4827d3fee_" -H "DeviceToken:TkVXSUQjOTJhNTE3YzQyZjk2OTlkZjNjNDhjMGM1ZjdlMWZiY2QtaC0xNTk0NzQyMjMzNTAxLWM5NzkxYzgxMTQ1YjQxNTdhYTM1Mzk1MjkyYjllMGJjI3FZRUN1MU1xUzQ5V0tEazRyM24yYURWTCtKQ1NqNDZCNnVXKzNVbmFDMlFMMUhrdGNHVURnTWJnS1piRElncGpwb1N4YmIwQmNpL2F4VlVSeUZwakN2YThsYXUweWY1OWhwcU9RU0k0R1B6Vm12MFg0V2cxRHJvWDBTQTh1TDlCR2hqTEtNRkZnVDh5dFZkUEN3cncvd0VXMkdnPQ==" -H "MemberId:3323" -H "Method:POST" -H "Authorization:eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MTA3MjI4LCJleHBpcmVfYXQiOiIyMDIwLTA3LTE3IDEyOjM5OjEwICswODAwIn0.mtyib1Nfmi5sgiafq5AZ9YiAOWzjJpJIm5RXxiNMv3o" -H "data:{\"data\": \"4b937edb1309b0e0cba3f1c7cdc8e425bc8617d50732c6a672943ccc441f530b0b78067c239af3746fb566ac813facf96af8ec9f539947d232b95b34236275ae039b9a49705a667dd71451c676aa67532927d92bc88b449f9a97afe85e74926bc82d22bbf7259ffd7433c48644a27bd4\"}"  -n 1000  -c 150 -p "/Users/cuiguangsong/my_files/scripts/post.txt" -T "application/json"  "https://test-apis.520yidui.com/t7/v3/rc/wow_good_luck"
+
+
+
+4.1.3 get请求
+ab  -c 100 https://test-apis.520yidui.com:9186/msg_type?phone_number=19010293928
+
+5.端口号被占用排查方法
+5.1 mac
+lsof -i tcp:端口号
+
+5.2 linux
+Netstat -tulp | grep 端口号
+
+
+
+6.Docker
+
+6.1 centos7安装docker
+https://www.cnblogs.com/shangping/p/11212562.html
+
+6.2 docker hub账号
+账号名:ericcgs
+绑定邮箱:cuiguangsong000@163.com
+密码:qpalzm1234
+
+
+
+6.2we
+7.Redis
+7.1环境搭建
+1.官网下载http://www.redis.cn/download.html
+2.解压 tar -zvxf redis-4.0.11.tar.gz
+3.cd redis-4.0.11
+4.make
+5.cd src
+6.启动server ./redis-server
+7.启动client  ./redis-cli
+
+
+
+8.Git
+8.1 环境搭建
+1.官网下载安装包安装
+2.git config --global user.name “cuigs” 配置用户名
+3.git config --global user.email “cuiguangsong@miliantech.com”  配置邮箱
+
+
+
+8.2 常用的git命令
+8.2.1 撤销commit
+git reset --soft HEAD^
+
+8.2.2 代码提交到远程仓库
+git push origin HEAD:refs/for/分支名
+
+8.2.3 删除已经添加到暂存区的无用的文件
+git rm -r --cached
+
+8.2.4 从远程仓库拉取最新代码
+查看远程仓库：
+git remote -v
+新建一个temp分支来拉取远程仓库的代码
+git fetch origin master:temp
+对比差异
+ git diff temp
+合并差异
+git merge temp
+删除临时分支
+git branch -d temp
+
+8.2.5 提交本地新建的分支到远程仓库
+git push --set-upstream origin start_branch
+
+
+8.2.6 提交本地已有项目到远程仓库
+注意:远程仓库得先建立对应的项目仓库
+git remote add origin https://github.com/EricWord/项目名.git
+git branch -M master
+git push -u origin master
+
+
+
+
+8.2.6 直接将本地项目推送到远程仓库
+这种情况是远程仓库没有对应名称的仓库
+
+echo "# 项目名" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M master
+git remote add origin https://github.com/EricWord/项目名.git
+git push -u origin master
+
+
+
+8.2.6 把某次commit提交到远程另外一个分支
+
+
+
+8.2.7 您的分支领先 'origin/master' 共 x 个提交
+解决方法：
+1.更新本地分支和远程master分支同步（但是不会丢失本地更改):
+
+git reset --soft origin/master
+
+2. git push origin HEAD:refs/for/master
+
+
+
+
+
+9.MySQL
+9.1 mac下环境搭建
+1.官网下载mysql dmg文件，安装，并记录下密码
+2. 进入/usr/local/mysql/bin,查看此目录下是否有mysql
+3.vim ~/.bash_profile
+4.source ~/.bash_profile
+5.SET PASSWORD FOR 'root'@'localhost' = PASSWORD('root123456');   修改密码
+
+
+
+9.2 授权
+添加新用户（允许所有ip访问）
+
+create user '用户名'@'*' identified by '密码';
+
+grant all privileges on  数据库名称.* to 用户名@'IP' identified by "密码";
+
+如果执行命令报错，注意检查分号是中文的还是英文的，是半角的还是全角的
+
+
+9.3 连接远程数据库
+mysql -h IP -u用户名 -p密码 -P端口号
+
+
+
+
+
+
+10.技术栈
+10.1 后端
+Nginx
+Elasticsearch  √
+Etcd  √
+
+
+10.2 前端
+
+Vue
+React
+
+
+
+11.架构相关
+11.1前后端分离交互
+
+
+11.2 后端分层后请求处理流程
+
+结构划分：
+整体分为两层:model 和 controller
+其中controller主要负责路由的转发，前端入参的校验以及构造model层需要的参数结构体
+model层分为两层，分别是logic和dao,其中logic主要负责业务逻辑的处理,注意logic层收到的参数都已经经过上层校验，所以本层不做任何参数校验相关的工作。dao层主要负责数据持久化相关工作，包括数据库表结构的定义以及数据库的增删改查。
+
+11.3 多协议请求交互
+
+
+
+
+
+
+12.hash算法
+12.1 murmurhash
+https://github.com/spaolacci/murmur3
+
+
+
+13.Elasticsearch
+13.1 centos7 搭建Elasticsearch集群环境
+https://www.cnblogs.com/reblue520/p/12219116.html
+
+1.配置jdk环境变量
+vim ~/.bash_profile
+追加如下配置，具体路径根据实际情况进行修改
+export JAVA_HOME=/opt/jdk-14.0.2
+export JRE_HOME=$JAVA_HOME/jre
+export PATH=$PATH:$JAVA_HOME/bin
+export CLASSPATH=./://$JAVA_HOME/lib:$JRE_HOME/lib
+
+2.创建相关的日志和数据目录
+mkdir -p /data/es/data
+mkdir -p /data/es/logs
+mkdir -p /data/es/back
+
+3.创建用于启动ES的用户
+groupadd -g 1500 elasticsearch
+useradd -u 1500 -g elasticsearch elasticsearch
+swapoff -a
+
+4.修改配置文件
+echo "fs.file-max = 1000000" >> /etc/sysctl.conf
+echo "vm.max_map_count=262144" >> /etc/sysctl.conf
+echo "vm.swappiness = 1" >> /etc/sysctl.conf
+
+sysctl -p
+sed -i 's/* soft nofile 65535/* soft nofile 655350/g' /etc/security/limits.conf
+sed -i 's/* hard nofile 65535/* hard nofile 655350/g' /etc/security/limits.conf
+sed -i 's#*          soft    nproc     4096##' /etc/security/limits.d/20-nproc.conf
+
+
+
+
+14.HomeBrew
+14.1 禁止自动更新
+
+export HOMEBREW_NO_AUTO_UPDATE=true
+
+
+
+15.Linux
+15.1常用命令
+15.1.1端口被占用查看
+netstat -nultp | grep 端口号
+
+15.2 虚拟机
+15.2.1 固定ip
+详细步骤:
+vim /etc/udev/rules.d/70-persistent-ipoib.rules
+执行上述命令编辑文件，追加以下内容
+ACTION=="add", SUBSYSTEM=="net", DRIVERS=="?*", ATTR{type}=="1", ATTR{address}=="00:50:56:3D:86:9A", NAME="eth0",KERNEL="eth*"
+
+标红的地方是虚拟机的mac地址，要根据具体情况进行修改，在下图所示位置可以找到
+
+
+
+执行
+vim /etc/sysconfig/network-scripts/ifcfg-eth0
+编辑这个文件，这个文件可能不存在，如果不存在则新建，写入以下内容
+CE="eth0"
+BOOTPROTO="static"
+NM_CONTROLLED="yes"
+ONBOOT="yes"
+TYPE="Ethernet"
+IPADDR=192.168.40.101 #这个地方要与宿主机在同一个网段
+NETMASK=255.255.255.0
+GATEWAY=192.168.40.2  #最后为2
+DNS1=114.114.114.114
+
+执行以下命令
+vim /etc/sysconfig/network
+编辑文件，写入以下内容
+NETWORKING=yes
+HOSTNAME=Hadoop01
+
+执行
+vim /etc/hosts
+写入以下内容
+192.168.40.101 Hadoop01
+192.168.40.102 Hadoop02
+
+重启网络服务使其生效
+
+
+
+15.3  centos7防火墙相关操作
+ 一、防火墙的开启、关闭、禁用命令
+
+（1）设置开机启用防火墙：systemctl enable firewalld.service
+
+（2）设置开机禁用防火墙：systemctl disable firewalld.service
+
+（3）启动防火墙：systemctl start firewalld
+
+（4）关闭防火墙：systemctl stop firewalld
+
+（5）检查防火墙状态：systemctl status firewalld
+
+二、使用firewall-cmd配置端口
+
+（1）查看防火墙状态：firewall-cmd --state
+
+（2）重新加载配置：firewall-cmd --reload
+
+（3）查看开放的端口：firewall-cmd --list-ports
+
+（4）开启防火墙端口：firewall-cmd --zone=public --add-port=9200/tcp --permanent
+
+　　命令含义：
+
+　　–zone #作用域
+
+　　–add-port=9200/tcp #添加端口，格式为：端口/通讯协议
+
+　　–permanent #永久生效，没有此参数重启后失效
+
+　　注意：添加端口后，必须用命令firewall-cmd --reload重新加载一遍才会生效
+
+（5）关闭防火墙端口：firewall-cmd --zone=public --remove-port=9200/tcp --permanent
+
+16.Scala
+16.1 mac搭建scala开发环境
+https://blog.csdn.net/zzw_17600691357/article/details/90380391
+
