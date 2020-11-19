@@ -1,4 +1,7 @@
+[TOC]
+
 # Go相关技术总结
+
 ## 1.本地编译生成目标系统(Linux)bin文件
 下面的两种方式都可以实现
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build  
