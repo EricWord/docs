@@ -122,8 +122,22 @@ Scala程序在进行赋值或运算时，精度小的类型自动转换为为精
 + 首字符为操作符(比如 + - * /),后续字符也需要跟操作符，至少一个
 + 操作符(比如 + - * /)不能在标识符中间和最后
 + 用反引号包括的任何字符串，即使是关键字也可以
-## 3. 关键字
+### 2.8. 关键字
 package,import,class,object,trait,extends,with,type,forSome,private,protected,abstract,sealed,  
 final,implicit,lazy,override,try,catch,finally,throw,if,else,match,case,do,while,for,return,yield,def,val,  
 var,this,super,new,true,false,null
 
+## 3.运算符
+### 3.1 运算符介绍
+运算符是一种特殊的符号，用以表示数据的运算、赋值和比较
++ 算术运算符
++ 赋值运算符
++ 比较运算符(关系运算符)
++ 逻辑运算符
++ 位运算符
+### 3.2 算术运算符
+#### 3.2.1 介绍
+算术运算符是对数值类型的变量进行运算的
+![算术运算符一览表](./images/7-算术运算符一览表.png)
+#### 3.2.2 细节说明
++ 对于除号 "/",它的整数除和小数
