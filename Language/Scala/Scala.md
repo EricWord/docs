@@ -889,7 +889,116 @@ Serializable就是Scala的一个特质，在Scala中，Java中的接口可以当
 + 不能存在二义性
 + 隐式操作不能嵌套使用
 
+### 10.数据结构
 
+#### 10.1 集合
+
++ Scala同时支持不可变集合和可变集合，不可变集合可以安全的并发访问
++ 两个包:
+  + 不可变集合:scala.collection.immutable
+  + 可变集合:scala.collection.mutable
++ scala默认采用不可变集合，对于几乎所有的集合类，scala都同时提供了可变(mutable)和不可变(immutable)的版本
++ Scala集合有三大类:序列Seq、集Set、映射Map,所有集合都扩展自Iterable特质，在Scala中集合有可变(mutable)和不可变(immutable)两种类型
+
+##### 10.1.1 可变集合和不可变集合举例
+
+1. 不可变集合:Scala不可变集合,就是这个集合本身不能动态变化(类似java的数组，是不可以动态增长的)
+2. 可变集合:就是这个集合本身可以动态变化(比如ArrayList是可以动态增长的)
+
+##### 10.1.2 不可变集合继承层次
+
+<img src="/Users/cuiguangsong/go/src/docs/Language/Scala/images/23-不可变集合继承层次.png" alt="image-20201125100236521" style="zoom:150%;" />
+
++ Set、Map是java中也有的集合
++ Seq是Java中没有的，可以从上图看出List归属到Seq了，因此这里的List就和java不是同一个概念了
++ for循环中的1 to 3 这样的操作用的数据结构就是IndexedSeq下的Vector
++ String也属于IndexSeq
++ 经典的数据结构Queue和Stack被归属到了LinearSeq
++ Map体系中一个SortedMap,说明Scala的Map可以支持排序
++ IndexSeq和LinearSeq的区别:
+  + IndexSeq是通过索引来查找和定位，因此速度快，比如String就是一个索引集合，通过索引即可定位
+  + LinearSeq是线性的，即有头尾的概念，这种数据结构一般是通过遍历来查找，它的价值在于应用到一些具体的场景(电商网站，大数据推荐系统:最近浏览的10个商品)
+
+##### 10.1.3 可变集合继承层次
+
+<img src="/Users/cuiguangsong/go/src/docs/Language/Scala/images/24-可变集合继承层次.png" alt="image-20201125101208259" style="zoom:150%;" />
+
+#### 10.2 数组-定长数组(声明泛型)
+
+##### 10.2.1 定义数组方式1
+
+这里的数组等同于Java中的数组，中括号中的类型就是数组的类型
+
+```scala
+val arr1 = new Array[Int](10)
+//赋值，集合元素采用小括号访问
+arr1(1)=7
+
+```
+
+##### 10.2.2 定义数组方式2
+
+在定义数组时，直接赋值
+
+```scala
+//使用apply方法创建数组对象
+val arr1 = Array(1,2)
+```
+
+#### 10.3 数组-变长数组(声明泛型)
+
+```scala
+//定义/声明
+val arr2 = ArrayBuffer[Int]()
+//追加值/元素
+arr2.append(7)
+//重新赋值
+arr2(0)=7
+```
+
+##### 10.3.1 边长数组分析小结
+
++  ArrayBuffer是变长数组，类似java中的ArrayList
++ val arr2 = ArrayBuffer[Int]()也是使用的apply方法构建对象
++ def append(elems:A*){appendAll(elems)}接收的是可变参数
++ 每append一次，arr2在底层会重新分配空间，进行扩容，arr2的内存地址会发生变化，也就成为新的ArrayBuffer 
+
+#### 10.4 定长数组和变长数组之间的转换
+
+##### 10.4.1 转换方法
+
+定长数组转可变数组:arr1.toBuffer
+
+可变数组转定长数组:arr2.toArray
+
++ arr2.toArray返回结果才是一个定长数组，arr2本身没有变化
++ arr1.toBuffer返回结构才是一个变长数组，arr1本身没有变化
+
+##### 10.4.2 实例代码
+
+```scala
+package net.codeshow.arrayBufferDemo
+
+import scala.collection.mutable.ArrayBuffer
+
+object Array2ArrayBufferDemo {
+  def main(args: Array[String]): Unit = {
+    val arr2 = ArrayBuffer[Int]()
+    //追加值
+    arr2.append(1, 2, 3)
+    println(arr2)
+    val newArr = arr2.toArray
+    println(newArr)
+
+    val newArr2 = newArr.toBuffer
+    newArr2.append(123)
+    println(newArr2)
+  }
+}
+
+```
+
+#### 10.5 数组-多维数组
 
 
 
