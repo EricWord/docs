@@ -1000,5 +1000,311 @@ object Array2ArrayBufferDemo {
 
 #### 10.5 数组-多维数组
 
+##### 10.5.1 多维数组定义
 
+```scala
+val arr = Array.ofDim[Double](3,4)
+```
+
+上面定义的代码二维数组中有三个一维数组，每个一维数组中有四个元素
+
+##### 10.5.2 代码示例
+
+```scala
+package net.codeshow.arrayBufferDemo
+
+object MultiArray {
+  def main(args: Array[String]): Unit = {
+    //3行4列的二维数组
+    val arr = Array.ofDim[Int](3, 4)
+    //遍历
+    for (item <- arr) {
+      for (i <- item) {
+        print(i + "\t")
+      }
+      println()
+    }
+    println("---取出指定元素---")
+    //取出指定的元素
+    println(arr(1)(1))
+    //修改值
+    arr(1)(1) = 99
+    //遍历
+    for (item <- arr) {
+      for (i <- item) {
+        print(i + "\t")
+      }
+      println()
+    }
+    println("---传统的下标的方式遍历")
+    for (i <- arr.indices) {
+      for (j <- arr(i).indices) {
+        printf("arr[%d][%d]=%d\t", i, j, arr(i)(j))
+
+      }
+      println()
+    }
+
+  }
+
+}
+
+```
+
+##### 10.5.3 scala数组与Java的List互转
+
+```scala
+package net.codeshow.arrayBufferDemo
+
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConverters._
+
+//scala集合与java的List互转
+object ArrayBuffer2JavaList {
+  def main(args: Array[String]): Unit = {
+    val arr = ArrayBuffer("1", "2", "3")
+    val javaArr = new ProcessBuilder(arr.asJava)
+    val arrList = javaArr.command()
+    println(arrList)
+  }
+}
+
+```
+
+##### 10.5.4 java中的List转成scala中的数组
+
+```scala
+package net.codeshow.arrayBufferDemo
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
+
+//Java中的Array转成scala中的ArrayBuffer
+object JavaArray2ScalaArrayBuffer {
+  def main(args: Array[String]): Unit = {
+    val arr = ArrayBuffer("1", "2", "3")
+    val javaArr = new ProcessBuilder(arr.asJava)
+    val arrList = javaArr.command()
+    import scala.collection.mutable
+
+    val scalaArr: mutable.Buffer[String] = arrList.asScala
+    scalaArr.append("jack")
+    //移除元素
+    scalaArr.remove(0)
+    println(scalaArr)
+  }
+}
+```
+
+#### 10.6 元组Tuple
+
+##### 10.6.1 基本介绍
+
+元组可以理解为一个容器，可以存放各种相同或不同类型的数据。说的简单点就是将多个无关的数据封装为一个整体，称为元组，特点：灵活、对数没有过多的约束
+
+**注意:**元组中最多只能有22个元素
+
+##### 10.6.2 元组的创建示例代码
+
+```scala
+package net.codeshow.tupleDemoes
+
+object TupleDemo01 {
+  def main(args: Array[String]): Unit = {
+    //创建Tuple
+    //tuple1 就是一个Tuple,类型是Tuple5
+    //为了高效操作元组，编译器根据元素的个数不同，对应不同的元组类型
+    //分别 Tuple1 ~ Tuple22
+    val tuple1 = (1, 2, 3, "hello", 4)
+    println(tuple1)
+  }
+}
+
+```
+
+##### 10.6.3 元组的创建小结
+
++ tuple1的类型是Tuple5,是Scala特有的类型
+
++ tuple1的类型取决于tuple1后面有多少个元素，有对应关系，比如4个元素=> Tuple4
+
++ 下面是一个Tuple5 的定义:
+
+  ```scala
+  /** A tuple of 5 elements; the canonical representation of a [[scala.Product5]].
+   *
+   *  @constructor  Create a new tuple with 5 elements. Note that it is more idiomatic to create a Tuple5 via `(t1, t2, t3, t4, t5)`
+   *  @param  _1   Element 1 of this Tuple5
+   *  @param  _2   Element 2 of this Tuple5
+   *  @param  _3   Element 3 of this Tuple5
+   *  @param  _4   Element 4 of this Tuple5
+   *  @param  _5   Element 5 of this Tuple5
+   */
+  final case class Tuple5[+T1, +T2, +T3, +T4, +T5](_1: T1, _2: T2, _3: T3, _4: T4, _5: T5)
+    extends Product5[T1, T2, T3, T4, T5]
+  {
+    override def toString(): String = "(" + _1 + "," + _2 + "," + _3 + "," + _4 + "," + _5 + ")"
+    
+  }
+  ```
+
++ 元组中最多只能有22个元素，即 Tuple1 ~ Tuple22
+
+##### 10.6.4 元组数据的访问
+
+访问元组中的数据可以采用顺序号(_顺序号)，也可以通过索引(productElement)访问
+
+```scala
+package net.codeshow.tupleDemoes
+
+object TupleDemo01 {
+  def main(args: Array[String]): Unit = {
+    //创建Tuple
+    //tuple1 就是一个Tuple,类型是Tuple5
+    //为了高效操作元组，编译器根据元素的个数不同，对应不同的元组类型
+    //分别 Tuple1 ~ Tuple22
+    val tuple1 = (1, 2, 3, "hello", 4)
+    println(tuple1)
+    //访问指定的元素,方式1,这种方式从1开始是第一个元素
+    println(tuple1._1)
+    //访问指定元素，方式2，这种方式下标从0开始
+    println(tuple1.productElement(0))
+  }
+}
+```
+
+##### 10.6.5 元组的遍历
+
+```scala
+ println("---遍历元组---")
+    for (item <- tuple1.productIterator) {
+      println("item=" + item)
+    }
+```
+
+#### 10.7 List
+
+##### 10.7.1 基本介绍
+
+Scala中的List和Java中的List不一样，在Java中List是一个接口，真正存放数据是ArrayList,而Scala的List可以直接存放数据，就是一个object,默认情况下，Scala的List是不可变的，List属于序列Seq
+
+##### 10.7.2 创建List的示例代码
+
+```scala
+package net.codeshow.listDemoes
+
+object ListDemo01 {
+  def main(args: Array[String]): Unit = {
+
+    //说明
+    //1.在默认情况下List是scala.collection.immutable.List,即不可变
+    //2.在Scala中List就是不可变的，如果需要使用可变的List,可以使用ListBuffer
+    //创建时直接分配元素
+    val list01 = List(1, 2, 3)
+    println(list01)
+    val list02 = Nil
+    println(list02)
+
+  }
+}
+```
+
+##### 10.7.3 List小结
+
++ List默认为不可变集合
++ List是在Scala包对象声明的，因此不需要引入其他包就可以使用
++ val List = scala.collection.immutable.List
++ List中可以放任何类型，比如arr1的类型为List[Any]
++ 如果希望得到一个空列表，可以使用Nil对象，在scala包对象声明的，因此不需要引入其他包也可以使用
+
+##### 10.7.4 追加元素
+
+向列表中追加元素，会返回新的列表/集合对象。注意:Scala中List元素的追加形式非常独特，和Java不一样
+
+```scala
+package net.codeshow.listDemoes
+
+object ListDemo01 {
+  def main(args: Array[String]): Unit = {
+    //说明
+    //1.在默认情况下List是scala.collection.immutable.List,即不可变
+    //2.在Scala中List就是不可变的，如果需要使用可变的List,可以使用ListBuffer
+    //创建时直接分配元素
+    val list01 = List(1, 2, 3)
+    println(list01)
+    val list02 = Nil
+    println(list02)
+    //访问List中的元素
+    val value1 = list01(1) //1是索引，表示取出第二个元素
+    println("value1=" + value1)
+
+    //通过:+ 和 +: 给list追加元素(本身的集合并没有变化)
+    val list1 = List(1, 2, 3, "abc")
+    //:+运算符表示在列表的最后增加数据
+    val list2 = list1 :+ 4
+    println("list1:" + list1) //list1没有变化
+    println("list2:" + list2) //list2的内容：List(1, 2, 3, abc, 4)
+    //+: 表示在List的前面添加元素
+    val list3 = 10 +: list1
+    println("list3:" + list3)
+
+    //::符合的使用
+    val list4 = List(1, 2, 3, "abc")
+    val list5 = 4 :: 5 :: 6 :: list4 :: Nil
+    println("list5:" + list5)
+
+    //::: 的使用
+    //:::两边都得是集合
+    val list6 = 4 :: 5 :: 6 :: list4 ::: Nil
+    println("list6:" + list6)
+  }
+}
+```
+
+说明:
+
++ 符号::表示向集合中 新建集合添加元素
++ 运算时，集合对象一定要放置在最右边
++ 运算规则，从右向左
++ :::运算符是将集合中的每一个元素加入到空集合中去
+
+#### 10.8 ListBuffer
+
+ListBuffer是可变的list集合，可以添加，删除元素，ListBuffer属于序列
+
+```scala
+package net.codeshow.listBufferDemoes
+
+import scala.collection.mutable.ListBuffer
+
+object ListBufferDemo01 {
+  def main(args: Array[String]): Unit = {
+    val lst0 = ListBuffer[Int](1, 2, 3)
+    println("lst0(2)=" + lst0(2))
+    for (item <- lst0) {
+      println("item=" + item)
+    }
+
+    val lst1 = new ListBuffer[Int] //空的
+    lst1 += 4 //增加单个元素
+    println("lst1:" + lst1)
+    lst1.append(5) //支持增加多个元素
+    println("lst1:" + lst1)
+
+    lst0 ++= lst1
+    println("lst0:" + lst0)
+    val lst2 = lst0 ++ lst1
+    println("lst2:" + lst2)
+    val lst3 = lst0 :+ 5
+
+    println("lst3:" + lst3)
+    println("===删除===")
+    println("lst1=" + lst1)
+    lst1.remove(1)
+    for (item <- lst1) {
+      println("item=" + item)
+    }
+  }
+}
+```
 
