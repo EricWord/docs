@@ -1308,3 +1308,11 @@ object ListBufferDemo01 {
 }
 ```
 
+#### 10.9 队列(Queue)
+
+##### 10.9.1 基本介绍
+
+1. 队列是一个有序列表，在底层可以用数组或链表来实现
+2. 队列的输入和输出要遵循先入先出的原则，即:先存入队列的数据要先取出，后存入的要后取出
+3. 在Scala中由设计者直接给我们提供队列类型使用
+4. 在Scala中有scala.collection.mutable.Queue和scala.collection.immutable.Queue,一般来说，我们在开发中通常使用可变集合中的队列
