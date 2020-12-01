@@ -1316,3 +1316,192 @@ object ListBufferDemo01 {
 2. 队列的输入和输出要遵循先入先出的原则，即:先存入队列的数据要先取出，后存入的要后取出
 3. 在Scala中由设计者直接给我们提供队列类型使用
 4. 在Scala中有scala.collection.mutable.Queue和scala.collection.immutable.Queue,一般来说，我们在开发中通常使用可变集合中的队列
+
+##### 10.9.2 操作队列
+
+```scala
+package net.codeshow.queueDemoes
+
+import scala.collection.mutable
+
+object QueueDemo01 {
+  def main(args: Array[String]): Unit = {
+    //创建队列
+    val q1 = new mutable.Queue[Any]
+    println(q1)//Queue()
+    //向队列中增加单个元素
+    q1 += 9
+    println("q1:" + q1)//q1:Queue(9)
+
+    q1 ++= List(4, 5, 7) //默认是追加到队列的末尾
+    println("q1:" + q1)//q1:Queue(9, 4, 5, 7)
+
+    q1 += List(10, 0) //这种方式表示将List(10,0)作为一个元素追加到q1中
+    println("q1:" + q1)//q1:Queue(9, 4, 5, 7, List(10, 0))
+  }
+    //从队列中取出一个元素
+    val value = q1.dequeue()
+    println("value=" + value)
+    println("q1:" + q1)
+    //入队列，默认是从队列的尾部加入
+    q1.enqueue(100, 991, 100, 888)
+    println("q1:" + q1)
+    //返回队列的元素
+    //1.获取队列的第一个元素
+    println("q1.head:" + q1.head)
+
+    //2.获取队列的最后一个元素
+    println("q1.last:" + q1.last)
+    //3.取出队尾的数据，即:返回除了第一个以外的剩余的元素
+    println("q1.tail:" + q1.tail)
+    println("q1.tail:" + q1.tail.tail.tail)//可以连续取tail(级联使用)
+
+}
+```
+
+##### 10.9.3 操作符重载
+
+```scala
+package net.codeshow.queueDemoes
+
+object OperatorOverload {
+  def main(args: Array[String]): Unit = {
+    val cat = new Cat
+    cat + 10
+    cat.+(9) //这种用法也可以
+    println("cat.age=" + cat.age)
+  }
+}
+
+class Cat {
+  var age = 0
+
+  def +(n: Int): Unit = {
+    this.age += n
+  }
+}
+
+```
+
+#### 10.10 映射结构-Map
+
+##### 10.10.1 基本介绍
+
+HashMap是一个散列表(数组+链表)，存储的内容是键值对(key-value)映射
+
+Scala中不可变的Map是有序的，可变的Map是无序的
+
+Scala中有可变Map(scala.collection.mutable.Map)和不可变Map(scala.collection.immutable.Map)
+
+##### 10.10.2 不可变Map构造
+
+```scala
+    //默认Map是immutable.Map
+    //key-value类型支持Any
+    //在Map的底层，每对key-value是Tuple2
+    val map1 = Map("Alice" -> 10, "Bob" -> 20, "Kotlin" -> "北京")
+    println("map1:" + map1)//map1:Map(Alice -> 10, Bob -> 20, Kotlin -> 北京)
+```
+
+1. 从输出的顺序可以看出，输出顺序和声明顺序一致
+2. 构建Map集合中，集合中的元素其实是Tuple2类型
+3. 默认情况下(没有引入其他包)，Map是不可变Map
+
+##### 10.10.3 可变Map构造
+
+```scala
+    val map2 = mutable.Map("Alice" -> 10, "Bob" -> 20, "Kotlin" -> "北京")
+    println("map2:" + map2)//map2:HashMap(Bob -> 20, Alice -> 10, Kotlin -> 北京)
+```
+
+从输出结果可以看出，输出顺序和声明顺序不一致
+
+##### 10.10.4 创建空的Map
+
+```scala
+    val map3 = new mutable.HashMap[String, Int]()
+    println("map3:" + map3)//map3:HashMap()
+```
+
+##### 10.10.4 对偶元组
+
+```scala
+    val map4 = mutable.Map(("Alice", 10), ("Bob", 20), ("Kotlin" -> "北京"))
+    println("map4:" + map4)//map4:HashMap(Bob -> 20, Alice -> 10, Kotlin -> 北京)
+```
+
+对偶元组即创建包含键值对的二元组，和创建不可变Map方式等价，只是形式上不同而已，对偶元组就是只包含有两个数据的元组
+
+##### 10.10.5 Map取值
+
+```scala
+  //使用contains方法检查是否存在Key
+    if (map1.contains("Alice~")) {
+      println("key存在，值=" + map1("Alice~"))
+    } else {
+      println("值不存在")
+    }
+
+    println("map1.get(\"Alice\"):" + map1.get("Alice"))
+    println("map1.get(\"Alice\").get:" + map1("Alice")) //这种使用方式如果key对应的value不存在，会抛出异常
+    println("map1.getOrElse(\"Alice\", \"默认的值\"):" + map1.getOrElse("Alice", "默认的值"))//10
+    println("map1.getOrElse(\"Alice~\", \"默认的值\"):" + map1.getOrElse("Alice~", "默认的值"))//如果key对应的value不存在会返回默认的值，不会抛出异常
+```
+
++ 如果确定map中中有目标key,应当使用map(key),速度快
++ 如果不能确定map中是否有目标key,而且有不同的业务逻辑，使用map.contains()先判断再加入逻辑
++ 如果只是简单地希望得到一个值，使用map.getOrElse(key,默认值)
+
+##### 10.10.6 map的修改、添加、删除元素
+
+```scala
+    val map5 = mutable.Map(("A", 1), ("B", "北京"), ("C", 3))
+    println("map5:" + map5)//map5:HashMap(A -> 1, B -> 北京, C -> 3)
+    map5("AA") = 20 //没有这个key相当于添加 map5:HashMap(AA -> 20, A -> 1, B -> 北京, C -> 3)
+    println("map5:" + map5)
+    map5("A") = 20 //存在key则直接更新 map5:HashMap(AA -> 20, A -> 20, B -> 北京, C -> 3)
+    println("map5:" + map5)
+    map5 += ("A" -> 100) //如果key已经存在，则直接更新
+    println("map5:" + map5)//map5:HashMap(AA -> 20, A -> 100, B -> 北京, C -> 3)
+    map5 += ("D" -> 9090) //如果key不存在，则直接添加
+    println("map5:" + map5)//map5:HashMap(AA -> 20, A -> 100, B -> 北京, C -> 3, D -> 9090)
+    //删除元素
+    map5 -= ("AA", "A") //如果key存在，删除对应的value,如果不存在，也不会报错
+   println("map5:" + map5)//map5:HashMap(B -> 北京, C -> 3, D -> 9090, E -> 8080, F -> 7070)
+```
+
+##### 10.10.7 map的遍历
+
+```scala
+    val map6 = mutable.Map(("A", 1), ("B", "北京"), ("C", 3))
+    //方式1
+    for ((k, v) <- map6) println(k + " is mapped to " + v)
+    //方式2
+    for (v <- map6.keys) println(v)
+    for (v <- map6.values) println(v)
+    //方式3
+    for (v <- map6) println(v) //此时v的类型是Tuple2
+    //取出Tuple2类型的v中的Key和value
+    for (v <- map6) println(v + " Key =" + v._1 + " val=" + v._2)
+```
+
+#### 10.11 Set
+
+不重复元素的集合，不保留顺序，默认是以hash集实现
+
+默认情况下，Scala使用的是不可变集合，如果想要使用可变集合，需要引用scala.collection.mutable.Set包
+
+##### 10.11.1 不可变集合的创建
+
+```scala
+    val set = Set(1, 2, 3) //不可变
+    println(set)
+```
+
+##### 10.11.2 可变集合的创建
+
+```scala
+    val set2 = mutable.Set(1, 2, "Hello") //可变的
+    println(set2)
+```
+
