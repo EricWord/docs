@@ -1505,3 +1505,237 @@ Scala中有可变Map(scala.collection.mutable.Map)和不可变Map(scala.collecti
     println(set2)
 ```
 
+##### 10.11.3 set元素的添加
+
+```scala
+    //元素的添加
+    //方式1
+    set2.add(4)
+    println("set2:" + set2)//set2:HashSet(1, 2, 4, Hello)
+    //方式2
+    set2 += 5
+    println("set2:" + set2)//set2:HashSet(1, 2, 4, Hello, 5)
+    //方式3
+    set2.+=(6)
+    println("set2:" + set2)//set2:HashSet(1, 2, 4, Hello, 5, 6)
+    set2 += 5//如果要添加的对象已经存在，不会重复添加，也不会报错
+    println("set2:" + set2)//set2:HashSet(1, 2, 4, Hello, 5, 6)
+```
+
+### 11.集合操作
+
+#### 11.1 高阶函数案例1
+
+```scala
+package net.codeshow.mapOperateDemoes
+
+object HighOrderFuncDemo01 {
+  def main(args: Array[String]): Unit = {
+    //使用高阶函数
+    val res = test(sum2 _, 3.5)
+    println("res=" + res)
+    //在scala中可以把一个函数直接赋给一个变量
+    val f1 = myPrint _
+    //执行
+    f1()
+
+  }
+
+  //test就是一个高阶函数
+  //f: Double => Double 表示一个函数，该函数可以接收一个Double,返回Double
+  //n1:Double 普通参数
+  //f(n1)在test函数中执行传入的函数
+  def test(f: Double => Double, n1: Double): Double = {
+    f(n1)
+  }
+
+  //普通的函数，该函数可以接收一个Double,返回Double
+  def sum2(d: Double): Double = {
+    d + d
+  }
+
+  def myPrint(): Unit = {
+    println("Hello,world!")
+  }
+
+}
+```
+
+#### 11.2 高阶函数案例2
+
+```scala
+package net.codeshow.mapOperateDemoes
+
+object HighOrderFuncDemo02 {
+  def main(args: Array[String]): Unit = {
+
+    test2(sayOk)
+  }
+
+  //test2是一个高阶函数，可以接收一个 没有输入，返回为Unit的函数
+  def test2(f: () => Unit): Unit = {
+    f()
+  }
+
+  def sayOk(): Unit = {
+    println("sayOKKKK....")
+  }
+}
+```
+
+所谓高阶函数，就是可接收一个函数作为参数的函数
+
+#### 11.3 map映射操作
+
+将集合中的每一个元素通过指定功能(函数)映射(转换)成新的结果集合	
+
+这里其实就是所谓的将函数作为参数传递给另外一个函数，这是函数式编程的特点
+
+```scala
+package net.codeshow.mapOperateDemoes
+
+object MapOperateDemo02 {
+  def main(args: Array[String]): Unit = {
+    val list = List(3, 5, 7)
+    val list2 = list.map(multiple)
+    println("list2:" + list2)
+    //list.map(multiple)做了什么？
+    //1.将list这个集合的元素依次遍历
+    //2.将各个元素传递给multiple函数
+    //3.将的到的新的int,放入到一个新的集合并返回
+    //4.因此multiple函数会被调用3次
+
+    val myList = MyList()
+    val myList2 = myList.map(multiple)
+    println("myList2=" + myList2)
+  }
+  def multiple(n: Int): Int = {
+    2 * n
+  }
+
+}
+
+//深刻理解map映射函数的机制-模拟实现
+class MyList {
+  val list1 = List(3, 5, 7, 9)
+  //新的集合
+  var list2 = List[Int]()
+
+  //写Map
+  def map(f: Int => Int): List[Int] = {
+    //遍历集合
+    for (item <- this.list1) {
+      list2 = list2 :+ f(item)
+    }
+    list2
+  }
+}
+
+object MyList {
+  def apply(): MyList = new MyList()
+}
+```
+
+#### 11.4 map扁平化操作
+
+将集合中的每个元素的子元素
+
+```scala
+package net.codeshow.faltDemoes
+
+//扁平化
+object FlatDemo01 {
+  def main(args: Array[String]): Unit = {
+    val names = List("Alice", "Bob", "Nick")
+    val names2 = names.map(_.toUpperCase())
+    println("names2:" + names2) //names2:List(ALICE, BOB, NICK)
+    //扁平化操作
+    val names3 = names.flatMap(_.toUpperCase())
+    println("names3:" + names3) //names3:List(A, L, I, C, E, B, O, B, N, I, C, K)
+  }
+}
+```
+
+#### 11.5 过滤-filter
+
+将符合要求的数据(筛选)放置到新的集合中
+
+```scala
+package net.codeshow.faltDemoes
+
+object FlatDemo02 {
+  def main(args: Array[String]): Unit = {
+    //选出首字母为A的元素
+    val names = List("Alice", "Bob", "Nick")
+    val names2 = names.filter(startA)
+    println("names2:" + names2) //names2:List(Alice)
+  }
+
+  def startA(str: String): Boolean = {
+    str.startsWith("A")
+  }
+}
+
+```
+
+#### 11.6 化简-reduce
+
+将二元函数引用于集合中的函数
+
+```scala
+package net.codeshow.reduceDemoes
+
+object ReduceDemo01 {
+  def main(args: Array[String]): Unit = {
+    //使用化简的方式计算list集合的和
+    val list = List(1, 20, 30, 4, 5)
+    val res = list.reduceLeft(sum)
+    println("res=" + res)
+
+  }
+
+  def sum(n1: Int, n2: Int): Int = {
+    n1 + n2
+  }
+
+}
+```
+
+reduce 等价于ruduceRight
+
+#### 11.7 折叠
+
+##### 11.7.1 基本介绍
+
+fold函数将上一步返回的值作为函数的第一个参数继续传递参与运算，直到list中所有元素被遍历
+
+fold、foldLeft、foldRight可以参考reduce相关方法理解
+
+##### 11.7.2 缩写形式
+
+foldLeft和foldRight的缩写形式分别是/:和:\
+
+ ```scala
+package net.codeshow.foldDemoes
+
+object FoldDemo02 {
+  def main(args: Array[String]): Unit = {
+    val list = List(1, 9, 2, 8)
+
+    def minus(num1: Int, num2: Int): Int = {
+      num1 - num2
+    }
+    var i = (1 /: list) (minus)
+  }
+
+}
+ ```
+
+#### 11.8 扫描
+
+
+
+
+
+
+
