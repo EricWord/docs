@@ -1733,9 +1733,236 @@ object FoldDemo02 {
 
 #### 11.8 扫描
 
+扫描，即对某个集合的所有元素做fold操作，但是会把产生的中间结果放置于一个集合中保存
 
+```scala
+package net.codeshow.scanDemoes
 
+object ScanDemo01 {
+  def main(args: Array[String]): Unit = {
+    //普通函数
+    def minus(num1: Int, num2: Int): Int = {
+      num1 - num2
+    }
 
+    val i = (1 to 5).scanLeft(5)(minus)
+    println("i=" + i)
+
+    def add(num1: Int, num2: Int): Int = {
+      num1 + num2
+    }
+    val i2 = (1 to 5).scanLeft(5)(add)
+    println("i2=" + i2)
+  }
+}
+```
+
+#### 11.9 拉链
+
+##### 11.9.1 基本介绍
+
+在开发中，当需要将两个集合进行 对偶元组合并，可以使用拉链
+
+```scala
+package net.codeshow.zipDemoes
+
+object ZipDemo01 {
+  def main(args: Array[String]): Unit = {
+    val list1 = List(1, 2, 3)
+    val list2 = List(4, 5, 6)
+    val list3 = list1.zip(list2)
+    println("list3=" + list3) //list3=List((1,4), (2,5), (3,6))
+  }
+}
+```
+
+##### 11.9.2 注意事项
+
++ 拉链的本质就是两个集合的合并操作，合并后每个元素是一个对偶元组
++ 如果两个集合个数不对应，会造成数据丢失
++ 集合不限于List,也可以是其他集合比如Array
++ 如果要取出合并后的各个对偶元组的数据，可以遍历
+
+#### 11.10 迭代器
+
+##### 11.10.1 基本说明
+
+通过iterator方法从集合获得一个迭代器，通过一个while循环和for表达式对集合进行遍历
+
+```scala
+package net.codeshow.iteratorDemoes
+
+object IteratorDemo01 {
+  def main(args: Array[String]): Unit = {
+    val iterator = List(1, 2, 3, 4, 5).iterator
+    //遍历方式1
+    println("--遍历方式1--")
+
+    while (iterator.hasNext) {
+      println(iterator.next())
+    }
+    //遍历方式2
+    println("--遍历方式2--")
+    for (enum <- iterator) {
+      println(enum)
+
+    }
+  }
+}
+```
+
+iterator的构建实际是AbstractIterator的一个匿名子类
+
+#### 11.11 流-stream
+
+##### 11.11.1 基本说明
+
+Stream是一个集合，这个集合可以用于存放无穷多个元素，但是这无穷个元素并不会一次性生产出来，而是需要用到多大的空间就会动态的产生，末尾元素遵循lazy原则(要使用结果时才进行计算)
+
+```scala
+package net.codeshow.streamDemoes
+
+object StreamDemo01 {
+  def main(args: Array[String]): Unit = {
+    //创建stream
+    def numsForm(n: BigInt): Stream[BigInt] = n #:: numsForm(n + 1)
+
+    val stream1 = numsForm(1)
+    println(stream1) //Stream(1, <not computed>)
+    //取出第一个元素
+    println("head=" + stream1.head) //head=1
+    println(stream1.tail) //Stream(2, <not computed>)
+    println(stream1) //Stream(1, 2, <not computed>)
+  }
+}
+```
+
+注意:如果使用集合，就不能使用last属性，如果使用last集合就会进行无限循环
+
+#### 11.12 view-视图
+
+##### 11.12.1 基本介绍
+
+stream的懒加载特性，也可以对其他集合应用view方法来得到类似的效果，具有如下特点:
+
++ view方法产生一个总是被懒加载执行的集合
++ view不会缓存数据，每次都要重新计算，比如遍历view时
+
+##### 11.12.2 应用案例
+
+请找到1-100中数字倒序排列和它本身相同的所有数
+
+```scala
+package net.codeshow.viewDemoes
+
+object ViewDemo01 {
+  def main(args: Array[String]): Unit = {
+    def multiple(num: Int): Int = {
+      num
+    }
+
+    def eq(i: Int): Boolean = {
+      i.toString.equals(i.toString.reverse)
+    }
+
+    //没有使用view
+    val viewSquares1 = (1 to 100).filter(eq)
+    println("viewSquares1:" + viewSquares1) //viewSquares1:Vector(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 22, 33, 44, 55, 66, 77, 88, 99)
+
+    //使用view
+    val viewSquares2 = (1 to 100).view.filter(eq)
+    println("viewSquares2:" + viewSquares2) //viewSquares2:View(<not computed>)
+    //遍历
+    for (item <- viewSquares2) {
+      println("item=" + item)
+    }
+  }
+}
+```
+
+#### 11.13 线程安全的集合
+
+##### 11.13.1 基本介绍
+
+所有线程安全的集合都是以Synchronzied开头的集合
+
+SynchronizedBuffer
+
+SynchronizedMap
+
+SynchronizedPriorityQueue
+
+SynchronizedQueue
+
+SynchronizedSet
+
+SynchronizedStack
+
+#### 11.14 并行集合
+
+##### 11.14.1 基本介绍
+
++ scala为了充分使用多核CPU,提供了并行集合(有别于串行集合)，用于多核环境的并行计算
+
++ 主要用到的算法有:
+
+  Divide and conquer:分治算法，scala通过splitters(分解器)，combines(组合器)等抽象层来实现，主要原理是将计算工作分解成很多任务，分发给一些处理器去完成，并将它们的处理结果合并后返回
+
+  Work stealin算法，主要用于任务调度负载均衡(load-balancing),通俗点讲，完成自己的任务后，发现其他人还有或没干完，主动(或被安排)帮他人一起干，这样达到尽早干完的目的。
+
+#### 11.15 操作符
+
++ 如果想在变量名、类名等定义中使用语法关键字(保留字)，可以配合反引号
+
+  ```scala
+  val `val` = 42
+  ```
+
++ 中置操作符：A操作符B等同于A.操作符(B)
+
++ 后置操作符:A操作符 等同于 A.操作符，如果操作符定义的时候不带()则调用时不能加括号
+
++ 前置操作符，+ - ! ~等操作符A等同于A.unary_操作符
+
++ 赋值操作符，A操作符=B等同于A=A操作符B,比如A+=B等价于A=A+B
+
+```scala
+package net.codeshow.operator
+
+object OperatorDemo01 {
+  def main(args: Array[String]): Unit = {
+    val n1 = 1
+    val n2 = 2
+    val r1 = n1 + n2
+    val r2 = n1.+(n2)
+    val monster = new Monster
+    monster + 10
+    monster.+(10)
+    println("monster.money=" + monster.money)
+    monster.++()
+    println("monster.money=" + monster.money)
+    !monster
+    println("monster.money=" + monster.money)
+  }
+}
+
+class Monster {
+  var money: Int = 0
+  //对操作符进行重载
+  def +(n: Int): Unit = {
+    this.money += n
+  }
+
+  def ++(): Unit = {
+    this.money += 1
+  }
+
+  //取反
+  def unary_!(): Unit = {
+    this.money = -this.money
+  }
+}
+```
 
 
 
