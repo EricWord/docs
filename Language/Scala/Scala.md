@@ -1996,3 +1996,179 @@ object MatchDemo01 {
 
 #### 12.1.2 细节和注意事项
 
++ 如果所有case都不匹配，那么会执行case _分支，类似于Java中的default语句
++ 如果所有case都不匹配，又没有写case _那么会抛出MatchError
++ 每个case中，不用break语句，自动中断case
++ 可以在match中使用其他类型，而不仅仅是字符
++ => 等价于java switch的:
++ => 后面的代码块到下一个case,是作为一个整体执行，可以使用{}括起来，也可以不括
+
+### 12.2 守卫
+
+#### 12.2.1 基本介绍
+
+如果想要表达式匹配某个范围的数据，就需要在模式匹配中增加条件守卫
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchIfDemo01 {
+  def main(args: Array[String]): Unit = {
+    for (ch <- "+-3!") {
+      var sign = 0
+      var digit = 0
+      ch match {
+        case '+' => sign = 1
+        case '-' => sign = -1
+          //如果case后有 条件守卫即if,那么这时的_不是表示默认匹配
+          //而是表示忽略传入的ch
+        case _ if ch.toString.equals("3") => digit = 3
+        case _ if ch > 10 => println("ch > 10")
+        case _ => sign = 2
+      }
+
+      println(ch + " " + sign + " " + digit)
+    }
+  }
+
+}
+```
+
+### 12.2 模式中的变量
+
+#### 12.2.1 基本介绍
+
+如果在case关键字后跟变量名，那么match前表达式的值会赋给那个变量
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchVar {
+  def main(args: Array[String]): Unit = {
+    val ch = 'v'
+    ch match {
+      case '+' => println("ok~")
+      case mychar => println("ok~" + mychar)
+      case _ => println("ok~~")
+    }
+    val ch1 = '+'
+
+    //match是一个表达式，因此可以有返回值
+    //返回值就是匹配到的代码块的最后一句话的值
+    val res = ch1 match {
+      case '+' => ch1 + " hello"
+      case _ => println("ok~")
+
+    }
+    println("res=" + res)
+  }
+}
+```
+
+### 12.3 类型匹配
+
+#### 12.3.1 基本介绍
+
+可以匹配对象的任意类型，这样做避免了使用isInstanceOf和asInstanceOf方法
+
+#### 12.3.2 示例代码
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchTypeDemo01 {
+  def main(args: Array[String]): Unit = {
+    val a = 7
+    //obj实例的类型根据a的值来返回
+    val obj = if (a == 1) 1
+    else if (a == 2) "2"
+    else if (a == 3) BigInt(3)
+    else if (a == 4) Map("aa" -> 1)
+    else if (a == 5) Map(1 -> "aa")
+    else if (a == 6) Array(1, 2, 3)
+    else if (a == 7) Array("aa", 1)
+    else if (a == 8) Array("aa")
+
+    //根据obj的类型来匹配
+    val result = obj match {
+      case a: Int => a
+      case b: Map[String, Int] => "对象是一个字符串-数字的Map集合"
+      case c: Map[Int, String] => "对象是一个数字-字符串的Map集合"
+      case d: Array[String] => "对象是一个字符串数组"
+      case e: Array[Int] => "对象是一个数字数组"
+      case f: BigInt => Int.MaxValue
+      case _ => "啥也不是"
+    }
+
+    println("result="+result)
+  }
+}
+```
+
+#### 12.3.3 注意事项
+
++ Map[String,Int]和Map[Int,String]是两种不同的类型其他类推
+
++ 在进行类型匹配时，编译器会预先检查是否有可能的匹配，如果没有则报错
+
+  ```scala
+  val obj = 10
+  val result = obj match {
+  case a : Int => a
+  case b : Map[String, Int] => "Map集合"//这一行会报错
+  case _ => "啥也不是"
+  }
+  
+  ```
+
++ 一个说明：
+
+  ```scala
+  val result = obj match { 
+      case i : Int => i
+  } 
+  ```
+
+  case i : Int => i 表示 将 i = obj (其它类推)，然后再判断类型
+
++ 如果case _ 出现在match中间，则表示隐藏变量名，即不使用，而不是表示默认匹配
+
+### 12.4 匹配数组
+
+#### 12.4.1 基本介绍
+
++ Array(0)匹配只有一个元素且为0的数组
++ Array(x,y)匹配有两个元素的数组，并将两个元素赋值为x和y。当然可以以此类推Array(x,y,z)匹配有3个元素的数组等等
++ Array(0,_*)匹配以0开头的数组
+
+#### 12.4.2 示例代码
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchArray {
+  def main(args: Array[String]): Unit = {
+    for (arr <- Array(Array(0), Array(1, 0), Array(0, 1, 0),
+      Array(1, 1, 0)
+      , Array(1, 1, 0, 1)
+    )) {
+      val result = arr match {
+        case Array(0) => "0"
+        case Array(x, y) => x + "=" + y
+        case Array(0, _*) => "以0开头的数组"
+        case _ => "什么集合都不是"
+
+      }
+      println("result=" + result)
+      //      result=0
+      //      result=1=0
+      //      result=以0开头和数组
+      //      result=什么集合都不是
+      //      result=什么集合都不是
+    }
+  }
+}
+```
+
+### 12.4 匹配列表
+
