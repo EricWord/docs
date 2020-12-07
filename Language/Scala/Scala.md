@@ -2172,3 +2172,180 @@ object MatchArray {
 
 ### 12.4 匹配列表
 
+```scala
+package net.codeshow.matchDemoes
+
+object MatchList {
+  def main(args: Array[String]): Unit = {
+    for (list <- Array(List(0), List(1, 0), List(0, 0, 0), List(88), List(1, 0, 0))) {
+      val result = list match {
+        case 0 :: Nil => "0"
+        case x :: y :: Nil => x + " " + y
+        case x :: Nil => x
+        case 0 :: tail => "0..."
+        case _ => "something else"
+      }
+      println(result)
+      //输出结果如下
+      //      0
+      //      1 0
+      //      0...
+      //      88
+      //      something else
+    }
+  }
+}
+```
+
+### 12.5 匹配元组
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchTupleDemo01 {
+  def main(args: Array[String]): Unit = {
+
+    for (pair <- Array((0, 1), (1, 0), (10, 30), (1, 1), (1, 0, 2))) {
+      val result = pair match {
+        case (0, _) => "0 ..."
+        case (y, 0) => y
+        case (x, y) => (y, x)
+        case _ => "other"
+      }
+      println(result)
+    }
+  }
+}
+```
+
+### 12.6 对象匹配
+
+#### 12.6.1 基本介绍
+
+对象匹配，什么才算是匹配呢？规则如下:
+
++ case中对象的unapply方法(对象提取器)返回Some集合则为匹配成功
++ 返回None集合则为匹配失败
+
+#### 12.6.2 应用案例
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchObject {
+  def main(args: Array[String]): Unit = {
+    val number: Double = 36.0
+    number match {
+      //case Square(n)运行机制说明
+      //1.当匹配到case Square(n)，调用Square的unapply方法
+      //2.z的值就是number
+      //3.如果对象提取器unapply(z: Double)返回的是Some(6),则表示匹配成功
+      //同时将6赋值给Square(n)中的n
+        //如果返回
+      case Square(n) => println("匹配成功,n=" + n)
+      case _ => println("nothing matched")
+    }
+
+  }
+
+}
+
+object Square {
+  //unapply是对象提取器
+  //接收z: Double类型
+  //返回类型是Option[Double]
+  //返回的值是Some(math.sqrt(z)),返回z的开平方的值并放入到Some中
+  def unapply(z: Double): Option[Double] = {
+    println("unapply 被调用")
+    Some(math.sqrt(z))
+  }
+
+  def apply(z: Double): Double = z * z
+}
+```
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchObject2 {
+  def main(args: Array[String]): Unit = {
+    val nameString = "Alice,Bob,Thomas"
+
+    nameString match {
+      //当执行 case Names(first, second, third)
+      //1.会调用unapplySeq(str)方法，把"Alice,Bob,Thomas" 传入给 str
+      //2.如果返回的是Some("Alice","Bob","Thomas") 分别给(first, second, third)
+        //注意这里返回的值的个数要和(first, second, third) 保持一致
+      case Names(first, second, third) => {
+        println("the string contains three  people's names")
+        println(s"$first $second $third")
+      }
+      case _ => println("nothing matched")
+    }
+
+  }
+
+}
+
+object Names {
+  //当构造器是多个参数时，就会触发这个对象提取器
+  def unapplySeq(str: String): Option[Seq[String]] = {
+    if (str.contains(",")) Some(str.split(","))
+    else None
+  }
+}
+```
+
+### 12.7 变量声明中的模式
+
+#### 12.7.1 基本介绍
+
+match中的每个case都可以单独提取出来，意思是一样的
+
+#### 12.7.2 应用案例
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchVarDemo {
+  def main(args: Array[String]): Unit = {
+    val (x, y, z) = (1, 2, "hello")
+    println("x=" + x)
+    val (q, r) = BigInt(10) /% 3
+    val arr = Array(1, 7, 2, 9)
+    val Array(first, second, _*) = arr
+    println(first, second)
+  }
+}
+```
+
+### 12.8 for表达式中的模式
+
+#### 12.8.1 基本介绍
+
+for循环也可以进行模式匹配
+
+#### 12.8.2 应用案例
+
+```scala
+package net.codeshow.matchDemoes
+
+object MatchForDemo01 {
+  def main(args: Array[String]): Unit = {
+    val map = Map("A" -> 1, "B" -> 0, "C" -> 3)
+    for ((k, v) <- map) {
+      println(k + " -> " + v)
+    }
+    println("------")
+    for ((k, 0) <- map) {
+      println(k + " --> " + 0)
+    }
+    println("------")
+    //下面的这种用法更加灵活
+    for ((k, v) <- map if v == 0) {
+      println(k + " --> " + v)
+    }
+  }
+}
+```
+
