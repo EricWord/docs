@@ -2349,3 +2349,189 @@ object MatchForDemo01 {
 }
 ```
 
+### 12.7 样例类
+
+#### 12.7.1 基本介绍
+
++ 样例类仍然是类
++ 样例类用case关键字进行声明
++ 样例类是为模式匹配而优化的类
++ 构造器中的每个参数在底层都是val类型，除非被显式的声明为var(不建议这样做)
++ 在样例类对应的伴生对象中提供apply方法可以不用new关键字就能构造出相应的对象
++ 提供unapply方法让模式匹配可以工作
++ 将自动生成toString、equals、hashCode和copy方法(有点类似模板类，直接生成，供程序员使用)
++ 除上述外，样例类和其他类完全一样，可以添加方法和字段，扩展它们。
+
+#### 12.7.2 应用实例
+
+```scala
+package net.codeshow.matchDemoes
+
+object CaseClassDemo01 {
+  def main(args: Array[String]): Unit = {
+
+  }
+}
+
+abstract class Amount {
+
+  //下面的均是样例类
+  case class Dollar(value: Double) extends Amount
+
+  case class Currency(value: Double, unit: String) extends Amount
+
+  case object NoAmount extends Amount
+}
+```
+
+#### 12.7.3 最佳实践1
+
+当我们有一个类型为Amount类型的对象时，可以用模式匹配来匹配它的类型，并将属性值绑定到变量(把样例类的属性值提取到某个变量)
+
+```scala
+package net.codeshow.matchDemoes
+
+object CaseClassDemo02 {
+  def main(args: Array[String]): Unit = {
+    //该案例的作用就是体验使用样例类方式进行对象的匹配简洁性
+    for (amt <- Array(Dollar(1000.0), Currency(1000.0, "RMB"), NoAmount)) {
+      val result = amt match {
+        case Dollar(v) => "$" + v
+        case Currency(v, u) => v + " " + u
+        case NoAmount => ""
+      }
+      println(amt + ":" + result)
+      //输出结果
+//      Dollar(1000.0):$1000.0
+//      Currency(1000.0,RMB):1000.0 RMB
+//        NoAmount:
+
+    }
+  }
+
+
+}
+
+//下面的均是样例类
+abstract class Amount
+
+case class Dollar(value: Double) extends Amount
+
+case class Currency(value: Double, unit: String) extends Amount
+
+case object NoAmount extends Amount
+```
+
+#### 12.7.4 最佳实践2
+
+样例类的copy方法和带名参数
+
+copy创建一个与现有对象相同的新对象，并可以通过带名参数来修改某些属性
+
+```scala
+package net.codeshow.matchDemoes
+
+object CaseClassDemo03 {
+  def main(args: Array[String]): Unit = {
+    val amt = new Currency3(3000.0, "RMB")
+    val amt2 = amt.copy() //克隆，创建的对象和amt的属性一样
+    println("amt2.value=" + amt2.value, ",amt2.unit=" + amt2.unit)
+    val amt3 = amt.copy(value = 8000.0)
+    println(amt3)
+    val amt4 = amt.copy(unit = "美元")
+
+  }
+
+}
+
+abstract class Amount3
+
+case class Dollar3(value: Double) extends Amount3
+
+case class Currency3(value: Double, unit: String) extends Amount3
+
+case object NoAmount3 extends Amount3
+```
+
+### 12.8 case语句中的中缀表达式
+
+什么是中置表达式？ 1+2，这是一个中置表达式。如果unapply方法产出一个元组，可以在case语句中使用中置表示法。比如可以匹配一个List序列
+
+```scala
+package net.codeshow.matchDemoes
+
+object MidCase {
+  def main(args: Array[String]): Unit = {
+    List(1, 3, 5, 9) match {
+      //1.两个元素间::叫中置表达式，至少first和second两个匹配才行
+      //2.first 匹配第一个second 匹配第二个，rest匹配剩余部分(5,9)
+      case first :: second :: rest => println(first + " " + second + " " + rest.length + " " + rest)
+      case _ => println("匹配不到...")
+    }
+  }
+}
+```
+
+### 12.9 匹配嵌套结构
+
+#### 12.9.1 基本介绍
+
+操作原理类似于正则表达式
+
+#### 12.9.2 最佳实践案例-商品捆绑打折出售
+
+现在有一些商品，亲使用Scala设计相关的样例类，完成商品捆绑打折出售。要求:
+
+1. 商品捆绑可以是单个商品，也可以是多个商品
+2. 打折时按照折扣x元进行设计
+3. 能够统计出所有捆绑商品打折后的最终价格
+
+```scala
+package net.codeshow.matchDemoes
+
+object SalesDemo {
+  def main(args: Array[String]): Unit = {
+    //这里给出了一个具体的打折的案例
+    val sale = Bundle("书籍", 10, Book("漫画", 40), Bundle("文学作品", 20, Book("《阳关》", 80), Book("《围城》", 30)))
+    //使用case语句得到"漫画"
+    val res = sale match {
+      //如果我们进行对象匹配时，不想接受某些值，则使用_忽略即可，_*表示所有
+      case Bundle(_, _, Book(desc, _), _*) => desc
+
+    }
+    println("res=" + res) //res=漫画
+
+    //通过@表示法将嵌套的值绑定到变量
+    val res2 = sale match {
+      case Bundle(_, _, art@Book(_, _), rest@_*) => (art, rest)
+
+    }
+    println("res2=" + res2) //res2=(Book(漫画,40.0),Bundle(文学作品,20.0,ArraySeq(Book(《阳关》,80.0), Book(《围城》,30.0))))
+    //不使用_*绑定剩余Item到rest
+
+    val res3 = sale match {
+      case Bundle(_, _, art@Book(_, _), rest) => (art, rest)
+
+    }
+    println("res3=" + res3) //res3=(Book(漫画,40.0),Bundle(文学作品,20.0,ArraySeq(Book(《阳关》,80.0), Book(《围城》,30.0))))
+
+
+  }
+
+}
+
+abstract class Item
+
+case class Book(description: String, price: Double) extends Item
+
+case class Bundle(description: String, discount: Double, item: Item*) extends Item
+
+```
+
+### 12.10 密封类
+
+#### 12.10.1 基本介绍
+
++ 如果想让case类的所有子类都必须在声明该类的相同的资源文件中定义，可以将样例类的通用超类声明为sealed,这个超类称之为密封类
++ 密封就是不能在其他文件中定义子类
++ 、
