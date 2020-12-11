@@ -2673,6 +2673,292 @@ object PartialFunc03 {
 }
 ```
 
+### 13.3 作为参数的函数
+
+#### 13.3.1 基本介绍
+
+函数作为一个变量传入到了另一个函数中，那么该作为参数的函数的类型是:function1,即:(参数类型) => 返回类型
+
+#### 13.3.2 应用实例
+
+```scala
+package net.codeshow.partialFuncDemoes
+
+object FuncParameter {
+  def main(args: Array[String]): Unit = {
+
+    def plus(x: Int) = 3 + x
+
+    val result = Array(1, 2, 3, 4).map(plus)
+    println(result.mkString(","))
+
+    //1.在scala中函数也是有类型的，比如plus就是 <function1>
+    println("plus的函数类型:" + (plus _))
+  }
+}
+```
+
++ map(plus(_))中的plus(_)就是将plus这个函数当做一个参数传给了map,_ 这里代表从集合中遍历出来的一个元素
++ plus(_)这里也可以写成plus表示对Array(1,2,3,4)遍历，将每次遍历的元素传给plus的x
++ 进行3+x运算后，返回新的Int,并加入到新的集合result中
++ def map \[B,That](f:A=>B)的声明中的f:A=>B一个函数
+
+### 13.4 匿名函数
+
+#### 13.4.1 基本介绍
+
+没有名字的函数就是匿名函数，可以通过函数表达式来设置匿名函数
+
+#### 13.4.2 应用实例
+
+```scala
+package net.codeshow.anonymouseFuncDemoes
+
+object AnonymouseFunc01 {
+  def main(args: Array[String]): Unit = {
+    //对匿名函数的说明
+    //1.不需要写def函数名
+    //2.不需要写返回类型，使用类型推导
+    //3. = 变成 =>
+    //4.如果有多行，则使用{}
+    val triple = (x: Double) => {
+      println("xxx")
+      3 * x
+    }
+    println(triple(3))
+  }
+}
+```
+
++ (x: Double) => {
+        println("xxx")
+        3 * x
+      }就是匿名函数
++ (x: Double)是形参列表，=>是规定语法表示后面是函数体,3*x等就是函数体，如果有多行，可以用{}换行写
++ triple是指向匿名函数的变量
+
+### 13.5 高阶函数
+
+#### 13.5.1 基本介绍
+
+能够接收函数作为参数的函数，叫做高阶函数(higher-order function),可使应用程序更加健壮
+
+#### 13.5.2 高阶函数的基本使用
+
+```scala
+package net.codeshow.higherOrderFunc
+
+object HigherOrderFunc01 {
+  def main(args: Array[String]): Unit = {
+
+    def test(f: Double => Double, f2: Double => Int, n1: Double) = {
+      f(f2(n1))
+    }
+
+    def sum(d: Double): Double = {
+      d + d
+    }
+
+    def mod(d: Double): Int = {
+      d.toInt % 2
+
+    }
+
+    val res = test(sum, mod, 5.0)
+    println("res=" + res)
+  }
+}
+```
+
+```scala
+package net.codeshow.higherOrderFunc
+
+object HigherOrderFunc02 {
+  def main(args: Array[String]): Unit = {
+
+    //1.minuxy 是一个高阶函数，因为它返回一个匿名函数
+    //2.返回的匿名函数是 (y: Int) => x - y
+    //3.返回的匿名函数可以使用变量接收
+    def minuxy(x: Int) = {
+      (y: Int) => x - y
+    }
+
+    val result3 = minuxy(3)(5)
+    println(result3)
+  }
+}
+```
+
++ 说明:def minusxy(x:Int)=(y:Int) => x-y
+  1. 函数名为minusxy
+  2. 该函数返回一个匿名函数 (y:Int) => x-y
++ 说明： val result = minusxy(3)(5)
+  1. minusxy(3)执行minusxy(x:Int)得到(y:Int) = 3 - y这个匿名函数
+  2. Minusxy(3)(5)执行(y:Int) => 3 - y这个匿名函数
+  3. 也可以分步执行： val f1 = minusxy(3);  val res = f1(90)
+
+### 13.6 参数(类型)推断
+
+#### 13.6.1 基本介绍
+
+参数推断省去类型信息(在某些情况下[需要有应用场景],参数类型是可以推断出来的，如list=(1,2,3) list.map() map中函数参数类型是可以推断的)同时也可以进行相应的简写
+
++ 参数类型是可以推断的，可以省略参数类型
++ 当传入的函数只有单个参数时，可以省去括号
++ 如果变量只在=>右边只出现一次，可以用_来代替
+
+#### 13.6.2 应用案例
+
+```scala
+package net.codeshow.parameterInfer
+
+object ParameterInfer01 {
+  def main(args: Array[String]): Unit = {
+
+    val list = List(1, 2, 3, 4)
+    println(list.map((x: Int) => x + 1))
+    //简写
+    println(list.map((x) => x + 1))
+    //再次简写
+    println(list.map(x => x + 1))
+    //再简写
+    println(list.map(_ + 1))
+
+    println(list.sum)//与这种方式等价println(list.reduce(_+_))
+  }
+}
+```
+
++ map是一个高阶函数，因此可以直接传入一个匿名函数，完成map
+
++ 当遍历list时，参数类型是可以推断出来的，可以省略数据类型Int
+  println(list.map((x)=>x+1))
+
++ 当传入的函数只有单个参数时，可以省略括号
+  println(list.map(x=>x+1))
+
++ 如果变量只在=>右边只出现一次，可以用_来代替
+
+  println(list.map(_+1))
+
+### 13.7 闭包(closure)
+
+#### 13.7.1 基本介绍
+
+闭包就是一个函数和与其相关的引用环境组合的一个整体(实体)
+
+#### 13.7.2 应用案例
+
+```scala
+package net.codeshow.closureDemoes
+
+object ClosureDemo01 {
+  def main(args: Array[String]): Unit = {
+    def minusxy(x: Int) = (y: Int) => x - y
+
+    //f函数就是闭包
+    val f = minusxy(20)
+    println("f(1)=" + f(1))
+    println("f(2)=" + f(2))
+  }
+}
+```
+
++ (y:Int) => x - y返回的是一个匿名函数，因为该函数引用到函数外的x,那么该函数和x整体形成一个闭包
+  如:这里 val f = minusxy(20)的f函数就是闭包
++ 可以这样理解，返回函数是一个对象，而x就是该对象的一个字段，它们共同形成一个闭包
++ 当多次调用f时(可以理解多次调用闭包)，发现使用的是同一个x,所以x不变
++ 在使用闭包时，要搞清楚返回函数引用了函数外的哪些变量，因为它们会组合成一个整体(实体)，形成一个闭包
+
+#### 13.7.3 最佳实践
+
+请编写一个程序，具体要求如下
+编写一个函数 makeSuffix(suffix: String)  可以接收一个文件后缀名(比如.jpg)，并返回一个闭包
+调用闭包，可以传入一个文件名，如果该文件名没有指定的后缀(比如.jpg) ,则返回 文件名.jpg , 如果已经有.jpg后缀，则返回原文件名。
+要求使用闭包的方式完成
+String.endsWith(xx)
+
+```scala
+package net.codeshow.closureDemoes
+
+object ClosureDemo02 {
+  def main(args: Array[String]): Unit = {
+    val f = makeSuffix(".jpg")
+    println(f("dog.jpg")) //dog.jpg
+    println(f("cat")) //cat.jpg
+
+  }
+
+
+  def makeSuffix(suffix: String) = {
+    //返回一个匿名函数，会使用到suffix
+    (fileName: String) => {
+      if (fileName.endsWith(suffix)) {
+        fileName
+      } else {
+        fileName + suffix
+      }
+    }
+
+  }
+}
+```
+
+### 13.8 函数柯里化
+
+#### 13.8.1 基本介绍
+
++ 函数编程中，接收多个参数的函数都可以转化为接收单个参数的函数，这个转化过程就叫柯里化
++ 柯里化就是证明了函数只需要一个参数而已。
++ 不用设立柯里化存在的意义这样的命题。柯里化就是以函数为主体这种思想发展必然产生的结果(柯里化是面向函数思想的必然产生的结果)
+
+#### 13.8.2 应用案例
+
+```scala
+package net.codeshow.curryDemoes
+
+object CurryDemo01 {
+  def main(args: Array[String]): Unit = {
+
+    def mulCurry(x: Int)(y: Int) = x * y
+    println(mulCurry(10)(8))
+  }
+}
+```
+
+```scala
+package net.codeshow.curryDemoes
+
+object CurryDemo02 {
+  def main(args: Array[String]): Unit = {
+    //这是一个函数，可以接收两个字符串，比较是否相等
+    def eq(s1: String, s2: String): Boolean = {
+      s1.equals(s2)
+    }
+
+    //隐式类
+    implicit class TestEq(s: String) {
+      //体现了将比较字符串的事情，分解成两个任务完成
+      //1.checkEq 完成转换大小写的任务
+      //2. f函数完成比较的任务
+      def checkEq(ss: String)(f: (String, String) => Boolean): Boolean = {
+        f(s.toLowerCase, ss.toLowerCase)
+      }
+    }
+
+    val str1 = "hello"
+    val res = str1.checkEq("HeLLO")(eq)
+    println("res=" + res)
+
+    //下面是一种简写形式
+    val res2 = str1.checkEq("HeLLO")(_.equals(_))
+    println("res2=" + res2)
+  }
+}
+```
+
+### 13.9 控制抽象
+
 
 
 
