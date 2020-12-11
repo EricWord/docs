@@ -2959,6 +2959,81 @@ object CurryDemo02 {
 
 ### 13.9 控制抽象
 
+#### 13.9.1 基本介绍
+
+控制抽象是这样的函数，满足如下条件:
+
++ 参数是函数
++ 函数参数没有输入值也没有返回值
+
+#### 13.9.2 应用示例
+
+```scala
+package net.codeshow.abstractControl
+
+object AbstractControl01 {
+  def main(args: Array[String]): Unit = {
+
+    //myRunInThread就是一个抽象控制
+    //f1: () => Unit 这个函数是一个没有输入也没有输出的函数
+    def myRunInThread(f1: () => Unit): Unit = {
+      new Thread {
+        override def run(): Unit = {
+          f1()
+        }
+      }.start()
+    }
+
+    myRunInThread {
+      () =>
+        println("干活了，5秒完成...")
+        Thread.sleep(5000)
+        println("干完了!")
+    }
+
+    def myRunInThread2(f1: => Unit): Unit = {
+      new Thread {
+        override def run(): Unit = {
+          f1
+        }
+      }.start()
+    }
+    //对于没有输入也没有返回值的函数，可以简写成如下形式
+    myRunInThread2 {
+      println("干活了，5秒完成...~~~")
+      Thread.sleep(5000)
+      println("干完了!~~")
+    }
+  }
+}
+```
+
+#### 13.9.3 使用控制抽象实现类似while的until函数
+
+```scala
+package net.codeshow.abstractControl
+
+object AbstractControl02 {
+  def main(args: Array[String]): Unit = {
+    var x = 10
+    until(x > 0) {
+      x -= 1
+      println("x=" + x)
+    }
+  }
+
+  @scala.annotation.tailrec
+  def until(condition: => Boolean)(block: => Unit): Unit = {
+    //类似while循环，递归
+    if (condition) {
+      block
+      //递归调用until
+      until(condition)(block)
+    }
+  }
+}
+```
+
 
 
 
