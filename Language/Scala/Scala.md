@@ -2534,4 +2534,168 @@ case class Bundle(description: String, discount: Double, item: Item*) extends It
 
 + 如果想让case类的所有子类都必须在声明该类的相同的资源文件中定义，可以将样例类的通用超类声明为sealed,这个超类称之为密封类
 + 密封就是不能在其他文件中定义子类
-+ 、
+
+## 13.函数式编程高级
+
+### 13.1 偏函数
+
+#### 13.1.1 引出
+
+```scala
+package net.codeshow.partialFuncDemoes
+
+/*
+给你一个集合val list = List(1, 2, 3, 4, "abc") ，请完成如下要求:
+将集合list中的所有数字+1，并返回一个新的集合
+要求忽略掉 非数字 的元素，即返回的 新的集合 形式为 (2, 3, 4, 5)
+*/
+
+object PartialFuncDemo01 {
+  def main(args: Array[String]): Unit = {
+
+    //思路1 filter+map方式解决
+
+    val list = List(1, 2, 3, 4, "abc")
+    //先过滤再map
+    val value = list.filter(f1).map(f3).map(f2)
+    println("value:" + value)
+
+    //思路2 模式匹配
+    //小结:虽然使用模式匹配比较简单，但是不够完美
+    val value2 = list.map(addOn2)
+    println("value2:" + value2)
+
+
+  }
+
+  def f1(n: Any): Boolean = {
+    n.isInstanceOf[Int]
+  }
+
+  def f2(n: Int): Int = {
+    n + 1
+  }
+
+  //将Any转成Int[map]
+  def f3(n: Any): Int = {
+    n.asInstanceOf[Int]
+  }
+
+  //思路2 模式匹配
+  def addOn2(i: Any): Any = {
+    i match {
+      case x: Int => x + 1
+      case _ =>
+    }
+  }
+}
+```
+
+#### 13.1.2 基本介绍
+
++ 在对符合某个条件，而不是所有情况进行逻辑操作时，使用偏函数是一个不错的选择
++ 将包在大括号内的一组case语句封装为函数，我们称之为偏函数，它只会对作用于指定类型的参数或指定范围值的参数实施计算，超出范围的值会忽略(未必会忽略，取决于打算怎么处理)
++ 偏函数在scala中是一个特质PartialFunction
+
+#### 13.1.3 应用代码
+
+```scala
+package net.codeshow.partialFuncDemoes
+
+object PartialFuncDemo02 {
+  def main(args: Array[String]): Unit = {
+    //使用偏函数解决
+    val list = List(1, 2, 3, 4, "abc")
+    //定义一个偏函数 PartialFunction[Any,Int] 表示偏函数接收的参数类型是Any,返回类型是Int
+    val partialFunc = new PartialFunction[Any, Int] {
+      //isDefinedAt(x: Any)如果返回true 就会去调用apply方法 构建对象实例
+      override def isDefinedAt(x: Any): Boolean = {
+        println("x=" + x)
+        x.isInstanceOf[Int]
+      }
+
+      //apply(v1: Any) 构造器，对传入的值+1并返回（新的集合）
+      override def apply(v1: Any): Int = {
+        println("v1=" + v1)
+        v1.asInstanceOf[Int] + 1
+
+      }
+    }
+
+    //偏函数的执行流程
+    //1.遍历list所有的元素
+    //2.调用isDefinedAt
+    //3.每得到一个元素，放入新的集合，最后返回
+
+    val list2 = list.collect(partialFunc)
+    println("list2:" + list2)
+  }
+
+}
+```
+
+#### 13.1.4 小结
+
++ 使用构建特质的实现类(使用方式是PartialFunction的匿名子类)
++ PartialFunction是个特质
++ 构建偏函数时，参数形式[Any,Int]是泛型，第一个表示参数类型，第二个表示返回参数
++ 当使用偏函数时，会遍历集合中的所有元素，编译器执行流程是先执行isDefinedAt(),如果为true,就会执行apply,构建一个新的Int对象返回
++ 执行isDefinedAt()为false就过滤掉这个元素，即不构建新的Int对象
++ map函数不支持偏函数，因为map底层的机制就是所有循环遍历，无法过滤处理原来集合的元素
++ collect函数支持偏函数
+
+### 13.2 偏函数的简化形式
+
+```scala
+package net.codeshow.partialFuncDemoes
+
+object PartialFunc03 {
+  def main(args: Array[String]): Unit = {
+    //第一种简化形式
+    def partialFun2: PartialFunction[Any, Int] = {
+      case i: Int => i + 1
+      case j: Double => (j * 2).toInt
+      case k: Float => (k * 3).toInt
+
+    }
+
+    val list = List(1, 2, 3, 4, 1.2, 2.4, 1.9f, "abc")
+    val list2 = list.collect(partialFun2)
+    println("list2=" + list2)
+    //第二种简化形式
+    val list3 = list.collect {
+      case i: Int => i + 1
+      case j: Double => (j * 2).toInt
+      case k: Float => (k * 3).toInt
+    }
+    println("list3=" + list3)
+  }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
