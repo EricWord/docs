@@ -3050,6 +3050,103 @@ Scala是运行在Java虚拟机上的，因此具有以下特点:
 2. 但其实面向对象编程并不是一种严格意义上的编程范式，严格意义上的编程范式分为:命令式编程(Imperative Programming)、函数式编程(Functional Programming)和逻辑式编程(Logic Programming)。面向对象编程只是上述几种范式的一个交叉产物，更多的还是继承了命令式编程的基因
 3. 在传统的语言设计中，只有命令编程得到了强调，那就是程序员要告诉计算机应该怎么做。而递归则通过灵巧的函数定义，告诉计算机做什么。因此在使用命令编程思维的程序中，是现在多数程序采用的编程方式，递归出境的几率很少，而在函数式编程中，可以随处见到递归的方式。
 
+### 14.3 使用递归的方式求和
+
+```scala
+package net.codeshow.recursiveDemoes
+
+import java.text.SimpleDateFormat
+import java.util.Date
+
+object RecursiveDemo01 {
+  def main(args: Array[String]): Unit = {
+    val now = new Date()
+    val dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    val start = dateFormat.format(now)
+    println("执行前的时间" + start)
+    var num = BigInt(1)
+    var sum = BigInt(0)
+    var res = mx(num, sum)
+    println("res=" + res)
+    val now2 = new Date()
+    val dateFormat2 = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    val end = dateFormat.format(now2)
+    println("执行后的时间" + end)
+
+  }
+
+  //递归的求和
+  def mx(num: BigInt, sum: BigInt): BigInt = {
+    if (num <= 999999991) mx(num + 1, sum + num)
+    else sum
+  }
+}
+```
+
+### 14.4 使用递归求List中的最大值
+
+```scala
+package net.codeshow.recursiveDemoes
+
+object RecursiveMaxList {
+  def main(args: Array[String]): Unit = {
+    println(myMax(List(1, -1, 9)))
+  }
+
+  //使用递归求List中的最大元素
+  def myMax(xs: List[Int]): Int = {
+    if (xs.isEmpty)
+      throw new java.util.NoSuchElementException
+    if (xs.size == 1)
+      xs.head
+    else if (xs.head > myMax(xs.tail)) xs.head else myMax(xs.tail)
+  }
+}
+```
+
+### 14.5 使用递归翻转字符串
+
+```scala
+package net.codeshow.recursiveDemoes
+
+object RecursiveReverseString {
+  def main(args: Array[String]): Unit = {
+    val str = "Hello"
+    val res = reverse(str)
+    println(res)
+  }
+
+  //使用递归完成字符串的翻转
+  def reverse(xs: String): String = {
+    if (xs.length == 1)
+      xs
+    else
+      reverse(xs.tail) + xs.head
+  }
+}
+```
+
+### 14.6 使用递归的方式求阶乘
+
+```scala
+package net.codeshow.recursiveDemoes
+
+object RecursiceacFactoria {
+  def main(args: Array[String]): Unit = {
+    println(factorial(2))
+  }
+
+  //递归的方式求阶乘
+  def factorial(n: Int): Int =
+    if (n == 0) 1 else n * factorial(n - 1)
+
+}
+```
+
+### 14.7 使用递归的注意事项和陷阱
+
+
+
 
 
 
