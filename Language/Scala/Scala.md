@@ -3162,7 +3162,7 @@ object RecursiceacFactoria {
 
 ### 15.3 Actor模型介绍
 
-![image-20201213095308780](E:\Projects\docs\Language\Scala\images\25-Actor.png)
+![image-20201213095308780](.\images\25-Actor.png)
 
 
 
@@ -3178,7 +3178,7 @@ object RecursiceacFactoria {
 
 ### 15.4 Actor模型工作机制说明
 
-![image-20201213101650636](E:\Projects\docs\Language\Scala\images\26-Actor工作机制示意图.png)
+![image-20201213101650636](.\images\26-Actor工作机制示意图.png)
 
 + ActorSystem 创建Actor
 + ActorRef:可以理解成是Actor的代理或引用。消息是通过ActroRef来发送，而不能通过Actor来发送消息，通过哪个ActorRef发消息，就表示把该消息发给哪个Actor
@@ -3193,7 +3193,99 @@ object RecursiceacFactoria {
 
 ### 15.6  Actor自我通讯机制原理
 
-![image-20201213172716218](E:\Projects\docs\Language\Scala\images\27-Actor的自我通讯机制.png)
+![image-20201213172716218](.\images\27-Actor的自我通讯机制.png)
+
+当程序执行aActorRef = actorFactory.actorOf(Props[AActor],"aActor")，会完成如下任务:
+
++ actorFactory是ActorSystem("ActorFactory")这样创建的
++ 这里的Props[AActor]会使用反射机制，创建一个AActor对象，如果是actorFactory.actorOf(Props(new AAactor(bActorRef)),"aActorRef")形式，就是使用new的方式创建一个AActor对象，注意Props()是小括号
++ 会创建一个AActor对象的代理对象aActorRef,使用aActorRef才能发送消息
++ 会在底层创建Dispatcher Message,是一个线程池，用于分发消息，消息是发送到对应的Actor的MailBox
++ 会在底层创建AActor的MailBox对象，该对象是一个队列，可接收Dispatcher Message发送的消息
++ MailBox实现了Runable接口，是一个线程，一直运行并调用Actor的receive方法，因此当Dispatcher发送消息到MailBox时，Actor在receive方法就可以得到信息
++ aActorRef ! "hello",表示把hello消息发送到A Actor的MailBox(通过Dispatcher Message转发)
+
+### 15.7 Actor模型应用实例-Actor间通讯
+
+![image-20201214174011957](./images/28-Actor间通讯需求.png)
+
+```scala
+package net.codeshow.akka.actors
+
+import akka.actor.{Actor, ActorRef}
+
+class AActor(actorRef: ActorRef) extends Actor {
+  val bActorRef: ActorRef = actorRef
+
+  override def receive: Receive = {
+    case "start" => {
+      println("A Actor 出招了，start ok!")
+      //发给自己
+      self ! "我打"
+    }
+    case "我打" => {
+      //给B Actor发出消息
+      //这里需要持有B Actor的引用
+      println("AActor(黄飞鸿) 厉害，看我佛山无影脚")
+      Thread.sleep(1000)
+      bActorRef ! "我打"
+
+    }
+  }
+}
+```
+
+```scala
+package net.codeshow.akka.actors
+
+import akka.actor.Actor
+
+class BActor extends Actor {
+  override def receive: Receive = {
+    case "我打" => {
+      println("BActor(乔峰) 挺猛 看我降龙十八掌")
+      //通过sender()可以获取到发送消息的actor的引用
+      Thread.sleep(1000)
+      sender() ! "我打"
+    }
+  }
+}
+```
+
+```scala
+package net.codeshow.akka.actors
+
+import akka.actor.{ActorRef, ActorSystem, Props}
+
+object ActorGame extends App {
+  //创建ActorSystem
+  val actorFactory: ActorSystem = ActorSystem("actorFactory")
+  //先创建BActor的引用
+  val bActorRef: ActorRef = actorFactory.actorOf(Props[BActor], "bActor")
+  //创建AActor的引用
+  val aActorRef: ActorRef = actorFactory.actorOf(Props(new AActor(bActorRef)), "aActor")
+  //A Actor出招
+  aActorRef ! "start"
+}
+```
+
+### 15.8 两个Actor之间通讯原理
+
+![image-20201214174412307](./images/29-两个Actor通讯原理图.png)
+
++ 两个Actor通讯机制和Actor自身发消息机制基本一样，有以下两个注意点:
+  + 如果A Actor需要给B Actor发消息，则需要持有B Actor的ActorRef,可以通过创建时，传入B Actor的代理对象(ActorRef)
+  + 当B Actor在receive方法中接收到消息，需要回复时，可以通过sender()获取到发送Actor的代理对象
++ 如何立即Actor的receive方法被调用？
+  + 每个Actor对应MailBox
+  + MailBox实现了Runable接口，处于运行的状态
+  + 当有消息达到MailBox,就会去调用Actor的receive方法，将消息推送给receive
+
+### 15.9 Akka网络编程
+
+
+
+## 16. 设计模式
 
 
 
