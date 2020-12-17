@@ -3411,7 +3411,405 @@ object SingleTon2 {
 
 ## 17. 特殊符合
 
+### 17.1 泛型
 
+#### 17.1.1 基本介绍
+
++ 如果要求函数的参数可以接受任意类型，可以使用泛型，这个类型可以代表任意的数据类型
++ 例如List,在创建List时，可以传入整型、字符串、浮点数等任意类型，因为List在类定义时引用了泛型
+
+#### 17.1.2 应用案例1
+
+```scala
+package net.codeshow.generic
+
+object GenericDemo01 {
+  def main(args: Array[String]): Unit = {
+    val intMessage = new IntMessage[Int](10)
+    println("intMessage=" + intMessage)
+    val strMesage = new StringMessage[String]("20")
+    println("strMesage=" + strMesage)
+  }
+}
+
+abstract class Message[T](s: T) {
+  def get: T = s
+}
+
+class IntMessage[Int](v: Int) extends Message(v)
+
+class StringMessage[String](v: String) extends Message(v)
+```
+
+#### 17.1.3 应用案例2
+
+```scala
+package net.codeshow.generic
+
+import net.codeshow.generic.SeasonEnum
+
+object GenericDemo02 {
+  def main(args: Array[String]): Unit = {
+    //    new EnglishClass[SeasonEnum.SE,String,String](SeasonEnum.spring,"","")//这行代码报错
+  }
+}
+
+class EnglishClass[A, B, C](val classSeason: A, val className: B, val classType: C)
+
+//季节是枚举类型
+class SeasonEnum extends Enumeration {
+  type SE = Value
+  val spring, autumn, summer, winter = Value
+}
+```
+
+#### 17.1.4 应用案例3
+
+```scala
+package net.codeshow.generic
+
+object GenericDemo03 {
+  def main(args: Array[String]): Unit = {
+    val list1 = List("hello", "dog", "world")
+    val list2 = List(90, 10, 23)
+    println("midList[String](list1)=" + midList[String](list1))
+    println("midList[Int](list2)=" + midList[Int](list2))
+  }
+
+  //定义一个函数，可以获取各种类型的List的中间index的值
+  //使用泛型完成
+  def midList[E](l: List[E]): E = {
+    l(l.length / 2)
+  }
+}
+```
+
+### 17.2 类型约束-上界(Upper Bounds)
+
+#### 17.2.1 基本介绍
+
+在scala中表示某个类型是A类型的子类型，也称上界或上限，使用<:关键字，语法如下:
+
+[T<:A]
+
+或者使用通配符
+
+[_ <:A]
+
+#### 17.2.2 应用案例
+
+```scala
+package net.codeshow.upperBounds
+
+object UpperBoundsDemo01 {
+  def main(args: Array[String]): Unit = {
+
+    val compareInt = new CompareInt(10, 20)
+    println(compareInt.greater)
+    val commonCompare1 = new CommonCompare(Integer.valueOf(10), Integer.valueOf(20))
+    println(commonCompare1.greater)
+
+    val commonCompare2 = new CommonCompare(java.lang.Float.valueOf(1.1f), java.lang.Float.valueOf(2.1f))
+    println(commonCompare2.greater)
+    //上面的写法等价于下面的写法,使用了隐式转换
+    val commonCompare3 = new CommonCompare[java.lang.Float](1.1f, 2.1f)
+    println(commonCompare3.greater)
+  }
+}
+
+//传统方法
+class CompareInt(n1: Int, n2: Int) {
+  //返回较大的值
+  def greater: Int = if (n1 > n2) n1 else n2
+}
+
+//使用上界来完成
+//1.[T <: Comparable[T]]表示传入的T类型是Comparable 子类型
+//2.即传入的T类型要继承Comparable接口
+//3.这样就可以直接使用compareTo方法
+//4.使用上界的写法的通用性要比传统写法要好
+class CommonCompare[T <: Comparable[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+### 17.3 类型约束-下界(Lower Bounds)
+
+#### 17.3.1 基本介绍
+
+scala中的下界或下限，使用>:关键字，语法如下
+
+[T >: A]
+
+或用通配符
+
+[_ >: A]
+
+#### 17.3.2 应用案例
+
+```scala
+def biophony[T >: Animal](things: Seq[T]) = things
+```
+
+#### 17.3.3 小结
+
++ 对于下界，可以传入任意类型
++ 传入和Animal直系的，是Animal父类的还是按照父类处理，是Animal子类的按照Animal处理
++ 和Animal无关的，一律按照Object处理
++ 也就是下界可以随便传，只是处理方式不一样
++ 不能使用上界的方式来类推下界的含义
+
+### 17.4 视图界定(View Bounds)
+
+#### 17.4.1 基本介绍
+
+<%的意思是"view bounds"(视界)，它比<:适用的范围更广，除了所有的子类型，还允许隐式转换类型
+
+def method \[A <% B](arglist):R=...等价于
+
+def method \[A](arglist)(implicit viewAB:A=>B):R=...
+
+或等价于
+
+implicit def conver(a:A):B=...
+
+<%除了方法使用外，class声明类型参数时也可以使用：
+
+class A[T <% Int]
+
+#### 17.4.2 应用案例1
+
+```scala
+package net.codeshow.viewBounds
+
+object ViewBoundsDemo01 {
+  def main(args: Array[String]): Unit = {
+    val commCompare01 = new CommonCompare(1, 20)
+    println(commCompare01.greater)
+  }
+}
+
+//T <% Comparable[T] 表示 T是Comparable子类型
+//T <% Comparable[T] 与 T <: Comparable[T]的区别就是前者支持隐式转换
+class CommonCompare[T <% Comparable[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+#### 17.4.3 应用案例2
+
+```scala
+package net.codeshow.viewBounds
+
+object ViewBoundsDemo02 {
+  def main(args: Array[String]): Unit = {
+    val p1 = new Person("tom", 10)
+    val p2 = new Person("jack", 20)
+    val compareComm2 = new CommonCompare2(p1, p2)
+    println(compareComm2.greater2.name)
+
+    val cat1 = new Cat("smith")
+    val cat2 = new Cat("tom")
+    println("xx"+new CommonCompare2(cat1, cat2).greater.name)
+
+
+  }
+}
+
+class Person(val name: String, val age: Int) extends Ordered[Person] {
+  override def compare(that: Person): Int = this.age - that.age
+
+  override def toString: String = this.name + "\t" + this.age
+
+}
+
+//比较cat的名字的长度的大小
+class Cat(val name: String) extends Ordered[Cat] {
+  override def compare(that: Cat): Int = {
+    this.name.length - that.name.length
+
+  }
+}
+
+class CommonCompare2[T <% Ordered[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1 > obj2) obj1 else obj2
+
+  def greater2: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+#### 17.4.4 应用案例3
+
+```scala
+package net.codeshow.viewBounds
+
+object ViewBoundsDemo03 {
+  def main(args: Array[String]): Unit = {
+    val p1 = new Person3("汤姆", 13)
+    val p2 = new Person3("杰克", 10)
+    //引入隐式函数
+    import MyImplicit._
+    val cc3 = new CommonCompare3(p1, p2)
+    println(cc3.greater)
+
+
+  }
+}
+
+class Person3(val name: String, val age: Int) {
+  override def toString: String = this.name + "\t" + this.age
+
+}
+
+
+class CommonCompare3[T <% Ordered[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1 > obj2) obj1 else obj2
+
+  def greater2: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+```scala
+package net.codeshow.viewBounds
+
+object MyImplicit {
+
+  implicit def person3toOrderedPerson3(person3: Person3)=new Ordered[Person3]{
+    override def compare(that: Person3): Int = {
+      person3.age - that.age
+    }
+  }
+}
+```
+
+### 17.5 上下文界定(Context Bounds)
+
+#### 17.5.1 基本介绍
+
+与view bounds一样，context bounds(上下文界定)也是隐式参数的语法糖，为了语法上的方便，引入了“上下文界定”这个概念
+
+#### 17.5.2 Ordered 和 Ordering的区别
+
+Ordering继承了java中的Comparator接口，而Ordered继承了java的Comparable接口，而在java中的Comparator是一个外部比较器(需要定义一个类来实现比较器),而Comparable则是一个内部比较器，在类内部重载compareTo函数
+
+#### 17.5.3 应用案例
+
+```scala
+package net.codeshow.contextBoundsDemoes
+
+object ContextBoundsDemo01 {
+
+  implicit val personComparator = new Ordering[Person4] {
+    override def compare(x: Person4, y: Person4): Int =
+      x.age - y.age
+  }
+
+  def main(args: Array[String]): Unit = {
+    val p1 = new Person4("mary", 30)
+    val p2 = new Person4("smith", 35)
+    val comm = new CompareComm4(p1, p2)
+    println(comm.greatter)
+
+    val comm2 = new CompareComm5(p1, p2)
+    println(comm2.greatter)
+
+    val comm3 = new CompareComm6(p1, p2)
+    println(comm3.greatter)
+
+
+  }
+
+}
+
+class Person4(val name: String, val age: Int) {
+  override def toString: String = this.name + "\t" + this.age
+}
+
+//方式1
+// [T: Ordering]泛型
+//obj1: T, obj2: T 接收T类型的对象
+//implicit comparetor: Ordering[T]是一个隐式参数
+class CompareComm4[T: Ordering](obj1: T, obj2: T)(implicit comparetor: Ordering[T]) {
+  def greatter = if (comparetor.compare(obj1, obj2) > 0) obj1 else obj2
+}
+
+//方式2
+//将隐式参数放到方法内
+class CompareComm5[T: Ordering](o1: T, o2: T) {
+  def greatter = {
+    def f1(implicit cmptor: Ordering[T]) = cmptor.compare(o1, o2)
+
+    if (f1 > 0) o1 else o2
+  }
+}
+
+//方式3
+class CompareComm6[T: Ordering](o1: T, o2: T) {
+  def greatter = {
+    //这行代码会发生隐式转换，获取到隐式值
+    val comparetor = implicitly[Ordering[T]]
+    println("CompareComm6 comparetor" + comparetor.hashCode())
+    if (comparetor.compare(o1, o2) > 0) o1 else o2
+  }
+}
+```
+
+### 17.6 协边、逆变和不变
+
+#### 17.6.1 基本介绍
+
++ Scala的协变(+)、逆变(-)，协变covariant、逆变contravariant、不可变invariant
++ 对于一个带类型参数的类型，比如List[T],如果对A及其子类型B,满足List[B]也符合List[A]的子类型，那么就称为covariance(协变)，如果List[A]是List[B]的子类型，即与原来的父子关系正相反，则称为contravariance(逆变)。如果一个类型支持协变或逆变，则称这个类型为variance(翻译为可变或者变型)否则称为invariance(不可变的)
++ 在java里，泛型类型都是invariant,比如List<String>并不是List<Object>的子类型。而Scala支持，可以在定义类型时声明(用加号表示协变，减号表示逆变)，如trait List[+T]在类型定义时声明为协变，这样会把List[String]作为List[Any]的子类型
+
+#### 17.6.2 应用案例
+
+```scala
+package net.codeshow.covariantDemoes
+
+object CovariantDemo01 {
+  def main(args: Array[String]): Unit = {
+    val t1: Temp3[Sub] = new Temp3[Sub]("hello")
+    //    val t2: Temp3[Sub] = new Temp3[Super]("hello") 错误
+    //    val t2: Temp3[Super] = new Temp3[Sub]("hello") 错误
+
+    val t4: Temp4[Sub] = new Temp4[Sub]("hello")
+    val t5: Temp4[Super] = new Temp4[Sub]("hello")
+    //    val t6: Temp4[Sub] = new Temp4[Super]("hello") //错误
+
+    val t7: Temp5[Sub] = new Temp5[Sub]("hello")
+    val t8: Temp5[Sub] = new Temp5[Super]("hello")
+    //    val t9: Temp5[Super] = new Temp5[Sub]("hello") 错误
+
+  }
+
+}
+
+//不变
+class Temp3[A](title: String) {
+  override def toString: String = {
+    title
+  }
+}
+
+class Temp4[+A](title: String) {
+  override def toString: String = {
+    title
+  }
+}
+
+//逆变
+class Temp5[-A](title: String) {
+  override def toString: String = {
+    title
+  }
+}
+
+//支持协边
+class Super //父类
+//sub是super的子类
+class Sub extends Super
+```
 
 
 
