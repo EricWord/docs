@@ -3340,6 +3340,73 @@ object ActorGame extends App {
 + 不要让类继承具体类，而是继承抽象类或者是trait(接口)
 + 不要覆盖基类中已经实现的方法
 
+### 16.3 单例模式
+
+单例模式:保证在整个的软件系统中，某个类只能存在一个对象实例
+
+scala中没有静态的概念，所以为了实现Java中单例模式的功能，可以直接采用类对象(伴生对象)方式构建单例对象
+
+#### 16.3.1 懒汉式
+
+```scala
+package net.codeshow.singleton
+
+object TestSingleTon {
+  def main(args: Array[String]): Unit = {
+    val instance1 = SingleTon.getInstance
+    val instance2 = SingleTon.getInstance
+    if (instance1 == instance2) {
+      println("相等")
+    }
+  }
+}
+
+//SingleTon的构造方法私有化
+class SingleTon private() {}
+
+object SingleTon {
+  private var s: SingleTon = null
+  //懒汉式
+  def getInstance = {
+    if (s == null) {
+      s = new SingleTon
+    }
+    s
+  }
+}
+```
+
+#### 16.3.2 饿汉式
+
+```scala
+package net.codeshow.singleton
+
+object TestSingleTon2 {
+  def main(args: Array[String]): Unit = {
+    val instance1 = SingleTon2.getInstance
+    val instance2 = SingleTon2.getInstance
+    if (instance1 == instance2) {
+      println("相等~~~")
+    }
+  }
+}
+
+//SingleTon的构造方法私有化
+class SingleTon2 private() {}
+
+object SingleTon2 {
+  private val s: SingleTon2 = new SingleTon2
+  //饿汉式
+  def getInstance: SingleTon2 = {
+    s
+  }
+}
+```
+
+
+
+
+
 
 
 
