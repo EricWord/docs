@@ -75,21 +75,311 @@ GraphX是Spark面向图计算提供的框架与算法库
 
 # 3. Spark运行环境
 
+Spark作为一个数据处理框架和计算引擎，被设计在所有常见的集群环境中运行，在国内工作中主流的环境为Yarn,不过容器式环境也慢慢流行起来。
+
+![image-20201219152836282](./images/6-spark_env.png)
+
+## 3.1 Local模式
+
+所谓Local模式，就是不需要其他任何节点资源就可以在本地执行Spark代码的环境
+
+### 3.1.1 解压缩文件
+
+![image-20201219160103511](./images/7-unzip_file.png)
+
+### 3.1.2 启动Local环境
+
+![image-20201219160202123](./images/8-enter.png)
+
+![image-20201219160230114](./images/9-webui.png)
+
+### 3.1.3 命令行工具
+
+在解压缩文件夹下的data目录中添加word.txt文件。在命令行工具中执行如下代码指令(和IDEA中代码简化版一致)
+
+![image-20201219161442318](./images/10-command.png)
+
+### 3.1.4 退出本地模式
+
+Ctrl + c 或者输入Scala命令
+
+```scala
+:quit
+```
+
+### 3.1.5 提交应用
+
+```scala
+./spark-submit  \
+ --class org.apache.spark.examples.SparkPi \
+ --master local[2] \
+ ../examples/jars/spark-examples_2.12-3.0.0.jar \
+ 10
+```
+
++ --class 表示要执行的程序的主类，此处可以替换成自己写的程序
++ --master local[2] 部署模式，默认为本地模式，数字表示分配的虚拟CPU核数量
++ spark-examples_2.12-3.0.0.jar 运行的应用类所在的jar包，实际使用时，可以设定为自己打的Jar包
++ 数字10 表示程序的入口参数，用于设定当前应用的任务数量
+
+![image-20201219162257145](./images/11-console.png)
+
+## 3.2 Standalone模式
+
+Spark的Standalone模式体现了经典的master-slave模式
+
+集群规划:
+
+![image-20201219164225567](./images/12-cluster_setting.png)
+
+### 3.2.1 解压缩文件
+
+![image-20201219164322624](/Users/cuiguangsong/go/src/docs/BigData/Spark/images/13-unzip2.png)
+
+### 3.2.2 修改配置文件
+
++ 进入解压缩后路径的conf目录，修改slaves.template文件名为slaves
+
+  ```shell
+  mv slaves.template slaves
+  ```
+
++ 修改slaves文件，添加work节点
+
+  ```shell
+  Hadoop02
+  Hadoop03
+  Hadoop04
+  ```
+
++ 修改spark-env.sh.template文件名为spark-env.sh
+
+  ```shell
+  mv spark-env.sh.template spark-env.sh
+  ```
+
++ 在spark-env.sh文件中追加JAVA_HOME环境变量和集群对应的master节点
+
+  ```shell
+  export JAVA_HOME=/opt/jdk1.8.0_261
+  SPARK_MASTER_HOST=Hadoop02
+  SPARK_MASTER_PORT=7077
+  ```
+
+  注意:7077端口，相当于Hadoop3内部通信的8020端口，此处的端口需要确定自己的Hadoop配置
+
++  分发spark-standlone目录
+
+  ```shell
+  xsync.sh  spark-standalone
+  ```
+
+  
+
+### 3.2.3 启动集群
+
++ 执行脚本命令
+
+  ```shell
+  sbin/start-all.sh
+  ```
+
+  ![image-20201219165250215](./images/14-console.png)
+
++ 查看三台服务器的运行进程
+
+  ![image-20201219165339550](/Users/cuiguangsong/go/src/docs/BigData/Spark/images/15-jps.png)
+
+![image-20201219165408012](./images/16-jps.png)
+
+![image-20201219165442453](./images/17-jps.png)
 
 
 
++ 查看Master资源监控Web UI界面:http://hadoop02:8080/
+
+  ![image-20201219165621093](./images/18-webui.png)
+
+### 3.2.4 提交应用
+
+```shell
+./spark-submit  \
+ --class org.apache.spark.examples.SparkPi \
+ --master spark://Hadoop02:7077  \
+ ../examples/jars/spark-examples_2.12-3.0.0.jar \
+ 10
+```
+
++ --class 表示要执行程序的主类
+
++ --master spark://Hadoop02:7077 独立部署模式，连接到Spark集群
+
++ spark-examples_2.12-3.0.0.jar 运行类所在的Jar包
+
++ 数字10表示程序的入口参数，用于设定当前应用的任务数量
+
+  ![image-20201219170116397](./images/19.png)
+
++ 执行任务时会产生多个Java进程
+
+  ![image-20201219170208322](./images/20.png)
+
++ 执行任务时，默认采用服务器集群节点的总核数，每个节点内存 1024M
+
+  ![image-20201219170416035](./images/21.png)
+
+### 3.2.5 提交参数说明
+
+在提交应用中一般会同时提交一些参数
+
+```shell
+bin/spark-submit \
+--class <main-class>
+--master <master-url> \
+... # other options
+<application-jar> \
+[application-arguments]
+```
+
+![image-20201219171202577](./images/22.png)
+
+![image-20201219171222708](./images/23.png)
+
+### 3.2.6 配置历史服务器
+
+由于spark-shell停止后，集群监控Hadoop02:4040页面就看不到历史任务的运行情况，所以开发时都配置历史服务器记录任务运行情况
+
++ 修改spark-defaults.conf.template文件名为spark-defaults.conf
+
++ 修改spark-defaults.conf文件，配置日志存储路径
+
+  ```shell
+  spark.eventLog.enabled true
+  spark.eventLog.dir hdfs://Hadoop02:9000/directory
+  ```
+
+注意:需要启动Hadoop集群，HDFS上的directory目录需要提前存在
+
+```shell
+sbin/start-dfs.sh
+hadoop fs -mkdir /directory
+```
+
++ 修改spark-env.sh文件，添加日志配置
+
+  ```shell
+  export SPARK_HISTORY_OPTS="
+  -Dspark.history.ui.port=18080
+  -Dspark.history.fs.logDirectory=hdfs://Hadoop02:9000/directory
+  -Dspark.history.retainedApplications=30"
+  ```
+
+  1. 参数1含义:WEB UI访问的端口为18080
+  2. 参数2含义:指定历史服务器日志存储路径
+  3. 参数3含义:指定保存Application历史记录的个数，如果超过这个值，旧的应用程序信息将被删除，这个是内存中的应用数，而不是页面上显示的应用数
+
++ 分发配置文件
+
+  ```shell
+  xsync.sh  spark-defaults.conf
+  ```
+
++ 重新执行任务
+
+  ```shell
+  ./spark-submit  \
+   --class org.apache.spark.examples.SparkPi \
+   --master spark://Hadoop02:7077  \
+   ../examples/jars/spark-examples_2.12-3.0.0.jar \
+   10
+  ```
+
+  ![image-20201219203138714](./images/24.png)
+
++ 查看历史服务:Hadoop02:18080
+
+  ![image-20201219203241314](./images/25.png)
+
+### 3.2.7 配置高可用(HA)
+
+所谓的高可用是因为当前集群中的Master节点只有一个，所以会存在单点故障问题。所以为了解决单点故障问题，需要在集群中配置多个Master节点，一旦处于活动状态的Master发生故障时，由备用Masterr提供服务，保证作业可以继续执行。这里的高可用一般采用Zookeeper设置。
+
+集群规划:
+
+![image-20201219205959104](./images/26.png)
+
++ 停止集群
+
+  ```shell
+  sbin/stop-all.sh
+  ```
+
++ 启动Zookeeper
+
+  ```shell
+  sh zkServer.sh start
+  ```
+
++ 修改spark-env.sh文件添加如下配置
+
+  ```shell
+  #注释掉下面这两行
+  # SPARK_MASTER_HOST=Hadoop02
+  # SPARK_MASTER_PORT=7077
+  
+  #Master监控页面默认访问端口为8080，但是可能会和Zookeeper冲突，所以改成8989，也可以自定义
+  SPARK_MASTER_WEBUI_PORT=8989
+  export SPARK_DAEMON_JAVA_OPTS="
+  -Dspark.deploy.recoveryMode=ZOOKEEPER
+  -Dspark.deploy.zookeeper.url=Hadoop02,Hadoop03,Hadoop04
+  -Dspark.deploy.zookeeper.dir=/spark"
+  ```
+
++  分发配置文件
+
+  ```shell
+  xsync.sh spark-env.sh
+  ```
+
++ 启动集群
+
+  ```shell
+  sbin/start-all.sh
+  ```
+
+  ![image-20201219210656777](./images/27.png)
+
++ 启动Hadoop03的单独的Master节点，此时Hadoop02节点Master状态处于备用状态
+
+  ```shell
+  sbin/start-master.sh
+  ```
+
+  ![image-20201219210847897](/Users/cuiguangsong/go/src/docs/BigData/Spark/images/28.png)
+
++ 提交应用到高可用集群
+
+  ```shell
+  ./spark-submit  \
+   --class org.apache.spark.examples.SparkPi \
+   --master spark://Hadoop02:7077,Hadoop03:7077  \
+   ../examples/jars/spark-examples_2.12-3.0.0.jar \
+   10
+  ```
+
++ 停止Hadoop02的Master资源监控进程
+
+  ![image-20201219211019193](./images/29.png)
+
++ 查看Hadoop03的Master资源监控Web UI,稍等一段时间后，Hadoop03节点的Master状态提升为活动状态
+
+  ![image-20201219211207646](./images/30.png)
+
+## 3.3 Yarn模式
 
 
 
+该操作这个
 
-
-
-
-
-
-
-
-
-
-
+![image-20201219212525659](./images/31.png)
 
