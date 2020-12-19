@@ -57,9 +57,23 @@ GraphX是Spark面向图计算提供的框架与算法库
 
 
 
+# 2. Spark 快速上手
+
+## 2.1 创建Maven项目
+
+### 2.1.1增加scala插件
+
+![image-20201218100818259](./images/4-scala_plugin.png)
+
+### 2.1.2 增加依赖关系
 
 
 
+### 2.1.3 WordCount
+
+![image-20201218101501782](./images/5-wordCount.png)
+
+# 3. Spark运行环境
 
 
 
