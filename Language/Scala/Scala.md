@@ -3162,7 +3162,7 @@ object RecursiceacFactoria {
 
 ### 15.3 Actor模型介绍
 
-![image-20201213095308780](E:\Projects\docs\Language\Scala\images\25-Actor.png)
+![image-20201213095308780](.\images\25-Actor.png)
 
 
 
@@ -3178,7 +3178,7 @@ object RecursiceacFactoria {
 
 ### 15.4 Actor模型工作机制说明
 
-![image-20201213101650636](E:\Projects\docs\Language\Scala\images\26-Actor工作机制示意图.png)
+![image-20201213101650636](.\images\26-Actor工作机制示意图.png)
 
 + ActorSystem 创建Actor
 + ActorRef:可以理解成是Actor的代理或引用。消息是通过ActroRef来发送，而不能通过Actor来发送消息，通过哪个ActorRef发消息，就表示把该消息发给哪个Actor
@@ -3193,13 +3193,623 @@ object RecursiceacFactoria {
 
 ### 15.6  Actor自我通讯机制原理
 
-![image-20201213172716218](E:\Projects\docs\Language\Scala\images\27-Actor的自我通讯机制.png)
+![image-20201213172716218](.\images\27-Actor的自我通讯机制.png)
+
+当程序执行aActorRef = actorFactory.actorOf(Props[AActor],"aActor")，会完成如下任务:
+
++ actorFactory是ActorSystem("ActorFactory")这样创建的
++ 这里的Props[AActor]会使用反射机制，创建一个AActor对象，如果是actorFactory.actorOf(Props(new AAactor(bActorRef)),"aActorRef")形式，就是使用new的方式创建一个AActor对象，注意Props()是小括号
++ 会创建一个AActor对象的代理对象aActorRef,使用aActorRef才能发送消息
++ 会在底层创建Dispatcher Message,是一个线程池，用于分发消息，消息是发送到对应的Actor的MailBox
++ 会在底层创建AActor的MailBox对象，该对象是一个队列，可接收Dispatcher Message发送的消息
++ MailBox实现了Runable接口，是一个线程，一直运行并调用Actor的receive方法，因此当Dispatcher发送消息到MailBox时，Actor在receive方法就可以得到信息
++ aActorRef ! "hello",表示把hello消息发送到A Actor的MailBox(通过Dispatcher Message转发)
+
+### 15.7 Actor模型应用实例-Actor间通讯
+
+![image-20201214174011957](./images/28-Actor间通讯需求.png)
+
+```scala
+package net.codeshow.akka.actors
+
+import akka.actor.{Actor, ActorRef}
+
+class AActor(actorRef: ActorRef) extends Actor {
+  val bActorRef: ActorRef = actorRef
+
+  override def receive: Receive = {
+    case "start" => {
+      println("A Actor 出招了，start ok!")
+      //发给自己
+      self ! "我打"
+    }
+    case "我打" => {
+      //给B Actor发出消息
+      //这里需要持有B Actor的引用
+      println("AActor(黄飞鸿) 厉害，看我佛山无影脚")
+      Thread.sleep(1000)
+      bActorRef ! "我打"
+
+    }
+  }
+}
+```
+
+```scala
+package net.codeshow.akka.actors
+
+import akka.actor.Actor
+
+class BActor extends Actor {
+  override def receive: Receive = {
+    case "我打" => {
+      println("BActor(乔峰) 挺猛 看我降龙十八掌")
+      //通过sender()可以获取到发送消息的actor的引用
+      Thread.sleep(1000)
+      sender() ! "我打"
+    }
+  }
+}
+```
+
+```scala
+package net.codeshow.akka.actors
+
+import akka.actor.{ActorRef, ActorSystem, Props}
+
+object ActorGame extends App {
+  //创建ActorSystem
+  val actorFactory: ActorSystem = ActorSystem("actorFactory")
+  //先创建BActor的引用
+  val bActorRef: ActorRef = actorFactory.actorOf(Props[BActor], "bActor")
+  //创建AActor的引用
+  val aActorRef: ActorRef = actorFactory.actorOf(Props(new AActor(bActorRef)), "aActor")
+  //A Actor出招
+  aActorRef ! "start"
+}
+```
+
+### 15.8 两个Actor之间通讯原理
+
+![image-20201214174412307](./images/29-两个Actor通讯原理图.png)
+
++ 两个Actor通讯机制和Actor自身发消息机制基本一样，有以下两个注意点:
+  + 如果A Actor需要给B Actor发消息，则需要持有B Actor的ActorRef,可以通过创建时，传入B Actor的代理对象(ActorRef)
+  + 当B Actor在receive方法中接收到消息，需要回复时，可以通过sender()获取到发送Actor的代理对象
++ 如何立即Actor的receive方法被调用？
+  + 每个Actor对应MailBox
+  + MailBox实现了Runable接口，处于运行的状态
+  + 当有消息达到MailBox,就会去调用Actor的receive方法，将消息推送给receive
+
+### 15.9 Akka网络编程
 
 
 
+## 16. 设计模式
+
+### 16.1 设计模式类型
+
++ 创建型模式
+
+  单例模式、抽象工厂模式、建造者模式、工厂模式、原型模式
+
++ 结构型模式
+
+  适配器模式、桥接模式、装饰模式、组合模式、外观模式、享元模式、代理模式
+
++ 行为模型模式
+
+  模板方法模式、命令模式、迭代器模式、观察者模式、中介者模式、备忘录模式、解释器模式(Interpreter模式)、状态模式、策略模式、职责链模式(责任链模式)、访问者模式
+
+### 16.2 工厂模式
+
+####  16.2.1 简单工厂模式
+
+##### 16.2.1.1 基本介绍
+
++ 简单工厂模式属于创建型模式，但是不属于23种GOF设计模式。简单工厂模式是由一个工厂对象决定创建出哪一种产品类的实例。简单工厂模式是工厂模式家族中最简单实用的模式
++ 简单工厂模式定义:定义了一个创建对象的类，由这个类来封装实例化对象的行为(代码)
++ 在软件开发中，会用到大量的创建某种、某类或者某批对象时就会使用到工厂模式
+
+##### 16.2.1.2 应用实例
+
+代码参见github
+
+![image-20201216122751089](./images/30-代码结构.png)
+
+#### 16.2.2 工厂方法模式
+
+定义一个创建对象的抽象方法，由子类决定要实例化的类。工厂方法模式将对象的实例化推迟到子类
+
+#### 16.2.3 抽象工厂模式
+
++ 抽象工厂模式:定义了一个trait用于创建相关或有依赖关系的对象族，而无需指明具体的类
++ 抽象工厂模式可以将简单工厂模式和工厂方法模式进行整合
++ 从设计层面看，抽象工厂模式就是对简单工厂模式的改进(或者称为进一步的抽象)
++ 将工厂抽象成两层:抽象工厂、具体实现的工厂子类。程序员可以根据创建对象的类型使用对应的工厂子类。这样将单个的简单工厂类变成了工厂族，更利于代码的维护和扩展。
+
+#### 16.2.4 工厂模式小结
+
+##### 16.2.4.1 工厂模式的意义
+
+将实例化对象的代码提取出来，放到一个类中统一管理和维护，达到和主项目的依赖关系的解耦，从而提高项目的扩展和维护性
+
+##### 16.2.4.2 设计模式的依赖抽象原则
+
++ 创建对象实例时，不要直接new类，而是把这个new类的动作放在一个工厂的方法中并返回。也有的书上说变量不要直接持有具体类的引用
++ 不要让类继承具体类，而是继承抽象类或者是trait(接口)
++ 不要覆盖基类中已经实现的方法
+
+### 16.3 单例模式
+
+单例模式:保证在整个的软件系统中，某个类只能存在一个对象实例
+
+scala中没有静态的概念，所以为了实现Java中单例模式的功能，可以直接采用类对象(伴生对象)方式构建单例对象
+
+#### 16.3.1 懒汉式
+
+```scala
+package net.codeshow.singleton
+
+object TestSingleTon {
+  def main(args: Array[String]): Unit = {
+    val instance1 = SingleTon.getInstance
+    val instance2 = SingleTon.getInstance
+    if (instance1 == instance2) {
+      println("相等")
+    }
+  }
+}
+
+//SingleTon的构造方法私有化
+class SingleTon private() {}
+
+object SingleTon {
+  private var s: SingleTon = null
+  //懒汉式
+  def getInstance = {
+    if (s == null) {
+      s = new SingleTon
+    }
+    s
+  }
+}
+```
+
+#### 16.3.2 饿汉式
+
+```scala
+package net.codeshow.singleton
+
+object TestSingleTon2 {
+  def main(args: Array[String]): Unit = {
+    val instance1 = SingleTon2.getInstance
+    val instance2 = SingleTon2.getInstance
+    if (instance1 == instance2) {
+      println("相等~~~")
+    }
+  }
+}
+
+//SingleTon的构造方法私有化
+class SingleTon2 private() {}
+
+object SingleTon2 {
+  private val s: SingleTon2 = new SingleTon2
+  //饿汉式
+  def getInstance: SingleTon2 = {
+    s
+  }
+}
+```
+
+### 16.4 装饰者模式(Decorator)
+
+动态地将新功能附加到对象上，在对象功能扩展方面，比继承更有弹性，装饰者模式也体现了开闭原则(OCP)
 
 
 
+## 17. 特殊符合
+
+### 17.1 泛型
+
+#### 17.1.1 基本介绍
+
++ 如果要求函数的参数可以接受任意类型，可以使用泛型，这个类型可以代表任意的数据类型
++ 例如List,在创建List时，可以传入整型、字符串、浮点数等任意类型，因为List在类定义时引用了泛型
+
+#### 17.1.2 应用案例1
+
+```scala
+package net.codeshow.generic
+
+object GenericDemo01 {
+  def main(args: Array[String]): Unit = {
+    val intMessage = new IntMessage[Int](10)
+    println("intMessage=" + intMessage)
+    val strMesage = new StringMessage[String]("20")
+    println("strMesage=" + strMesage)
+  }
+}
+
+abstract class Message[T](s: T) {
+  def get: T = s
+}
+
+class IntMessage[Int](v: Int) extends Message(v)
+
+class StringMessage[String](v: String) extends Message(v)
+```
+
+#### 17.1.3 应用案例2
+
+```scala
+package net.codeshow.generic
+
+import net.codeshow.generic.SeasonEnum
+
+object GenericDemo02 {
+  def main(args: Array[String]): Unit = {
+    //    new EnglishClass[SeasonEnum.SE,String,String](SeasonEnum.spring,"","")//这行代码报错
+  }
+}
+
+class EnglishClass[A, B, C](val classSeason: A, val className: B, val classType: C)
+
+//季节是枚举类型
+class SeasonEnum extends Enumeration {
+  type SE = Value
+  val spring, autumn, summer, winter = Value
+}
+```
+
+#### 17.1.4 应用案例3
+
+```scala
+package net.codeshow.generic
+
+object GenericDemo03 {
+  def main(args: Array[String]): Unit = {
+    val list1 = List("hello", "dog", "world")
+    val list2 = List(90, 10, 23)
+    println("midList[String](list1)=" + midList[String](list1))
+    println("midList[Int](list2)=" + midList[Int](list2))
+  }
+
+  //定义一个函数，可以获取各种类型的List的中间index的值
+  //使用泛型完成
+  def midList[E](l: List[E]): E = {
+    l(l.length / 2)
+  }
+}
+```
+
+### 17.2 类型约束-上界(Upper Bounds)
+
+#### 17.2.1 基本介绍
+
+在scala中表示某个类型是A类型的子类型，也称上界或上限，使用<:关键字，语法如下:
+
+[T<:A]
+
+或者使用通配符
+
+[_ <:A]
+
+#### 17.2.2 应用案例
+
+```scala
+package net.codeshow.upperBounds
+
+object UpperBoundsDemo01 {
+  def main(args: Array[String]): Unit = {
+
+    val compareInt = new CompareInt(10, 20)
+    println(compareInt.greater)
+    val commonCompare1 = new CommonCompare(Integer.valueOf(10), Integer.valueOf(20))
+    println(commonCompare1.greater)
+
+    val commonCompare2 = new CommonCompare(java.lang.Float.valueOf(1.1f), java.lang.Float.valueOf(2.1f))
+    println(commonCompare2.greater)
+    //上面的写法等价于下面的写法,使用了隐式转换
+    val commonCompare3 = new CommonCompare[java.lang.Float](1.1f, 2.1f)
+    println(commonCompare3.greater)
+  }
+}
+
+//传统方法
+class CompareInt(n1: Int, n2: Int) {
+  //返回较大的值
+  def greater: Int = if (n1 > n2) n1 else n2
+}
+
+//使用上界来完成
+//1.[T <: Comparable[T]]表示传入的T类型是Comparable 子类型
+//2.即传入的T类型要继承Comparable接口
+//3.这样就可以直接使用compareTo方法
+//4.使用上界的写法的通用性要比传统写法要好
+class CommonCompare[T <: Comparable[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+### 17.3 类型约束-下界(Lower Bounds)
+
+#### 17.3.1 基本介绍
+
+scala中的下界或下限，使用>:关键字，语法如下
+
+[T >: A]
+
+或用通配符
+
+[_ >: A]
+
+#### 17.3.2 应用案例
+
+```scala
+def biophony[T >: Animal](things: Seq[T]) = things
+```
+
+#### 17.3.3 小结
+
++ 对于下界，可以传入任意类型
++ 传入和Animal直系的，是Animal父类的还是按照父类处理，是Animal子类的按照Animal处理
++ 和Animal无关的，一律按照Object处理
++ 也就是下界可以随便传，只是处理方式不一样
++ 不能使用上界的方式来类推下界的含义
+
+### 17.4 视图界定(View Bounds)
+
+#### 17.4.1 基本介绍
+
+<%的意思是"view bounds"(视界)，它比<:适用的范围更广，除了所有的子类型，还允许隐式转换类型
+
+def method \[A <% B](arglist):R=...等价于
+
+def method \[A](arglist)(implicit viewAB:A=>B):R=...
+
+或等价于
+
+implicit def conver(a:A):B=...
+
+<%除了方法使用外，class声明类型参数时也可以使用：
+
+class A[T <% Int]
+
+#### 17.4.2 应用案例1
+
+```scala
+package net.codeshow.viewBounds
+
+object ViewBoundsDemo01 {
+  def main(args: Array[String]): Unit = {
+    val commCompare01 = new CommonCompare(1, 20)
+    println(commCompare01.greater)
+  }
+}
+
+//T <% Comparable[T] 表示 T是Comparable子类型
+//T <% Comparable[T] 与 T <: Comparable[T]的区别就是前者支持隐式转换
+class CommonCompare[T <% Comparable[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+#### 17.4.3 应用案例2
+
+```scala
+package net.codeshow.viewBounds
+
+object ViewBoundsDemo02 {
+  def main(args: Array[String]): Unit = {
+    val p1 = new Person("tom", 10)
+    val p2 = new Person("jack", 20)
+    val compareComm2 = new CommonCompare2(p1, p2)
+    println(compareComm2.greater2.name)
+
+    val cat1 = new Cat("smith")
+    val cat2 = new Cat("tom")
+    println("xx"+new CommonCompare2(cat1, cat2).greater.name)
+
+
+  }
+}
+
+class Person(val name: String, val age: Int) extends Ordered[Person] {
+  override def compare(that: Person): Int = this.age - that.age
+
+  override def toString: String = this.name + "\t" + this.age
+
+}
+
+//比较cat的名字的长度的大小
+class Cat(val name: String) extends Ordered[Cat] {
+  override def compare(that: Cat): Int = {
+    this.name.length - that.name.length
+
+  }
+}
+
+class CommonCompare2[T <% Ordered[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1 > obj2) obj1 else obj2
+
+  def greater2: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+#### 17.4.4 应用案例3
+
+```scala
+package net.codeshow.viewBounds
+
+object ViewBoundsDemo03 {
+  def main(args: Array[String]): Unit = {
+    val p1 = new Person3("汤姆", 13)
+    val p2 = new Person3("杰克", 10)
+    //引入隐式函数
+    import MyImplicit._
+    val cc3 = new CommonCompare3(p1, p2)
+    println(cc3.greater)
+
+
+  }
+}
+
+class Person3(val name: String, val age: Int) {
+  override def toString: String = this.name + "\t" + this.age
+
+}
+
+
+class CommonCompare3[T <% Ordered[T]](obj1: T, obj2: T) {
+  def greater: T = if (obj1 > obj2) obj1 else obj2
+
+  def greater2: T = if (obj1.compareTo(obj2) > 0) obj1 else obj2
+}
+```
+
+```scala
+package net.codeshow.viewBounds
+
+object MyImplicit {
+
+  implicit def person3toOrderedPerson3(person3: Person3)=new Ordered[Person3]{
+    override def compare(that: Person3): Int = {
+      person3.age - that.age
+    }
+  }
+}
+```
+
+### 17.5 上下文界定(Context Bounds)
+
+#### 17.5.1 基本介绍
+
+与view bounds一样，context bounds(上下文界定)也是隐式参数的语法糖，为了语法上的方便，引入了“上下文界定”这个概念
+
+#### 17.5.2 Ordered 和 Ordering的区别
+
+Ordering继承了java中的Comparator接口，而Ordered继承了java的Comparable接口，而在java中的Comparator是一个外部比较器(需要定义一个类来实现比较器),而Comparable则是一个内部比较器，在类内部重载compareTo函数
+
+#### 17.5.3 应用案例
+
+```scala
+package net.codeshow.contextBoundsDemoes
+
+object ContextBoundsDemo01 {
+
+  implicit val personComparator = new Ordering[Person4] {
+    override def compare(x: Person4, y: Person4): Int =
+      x.age - y.age
+  }
+
+  def main(args: Array[String]): Unit = {
+    val p1 = new Person4("mary", 30)
+    val p2 = new Person4("smith", 35)
+    val comm = new CompareComm4(p1, p2)
+    println(comm.greatter)
+
+    val comm2 = new CompareComm5(p1, p2)
+    println(comm2.greatter)
+
+    val comm3 = new CompareComm6(p1, p2)
+    println(comm3.greatter)
+
+
+  }
+
+}
+
+class Person4(val name: String, val age: Int) {
+  override def toString: String = this.name + "\t" + this.age
+}
+
+//方式1
+// [T: Ordering]泛型
+//obj1: T, obj2: T 接收T类型的对象
+//implicit comparetor: Ordering[T]是一个隐式参数
+class CompareComm4[T: Ordering](obj1: T, obj2: T)(implicit comparetor: Ordering[T]) {
+  def greatter = if (comparetor.compare(obj1, obj2) > 0) obj1 else obj2
+}
+
+//方式2
+//将隐式参数放到方法内
+class CompareComm5[T: Ordering](o1: T, o2: T) {
+  def greatter = {
+    def f1(implicit cmptor: Ordering[T]) = cmptor.compare(o1, o2)
+
+    if (f1 > 0) o1 else o2
+  }
+}
+
+//方式3
+class CompareComm6[T: Ordering](o1: T, o2: T) {
+  def greatter = {
+    //这行代码会发生隐式转换，获取到隐式值
+    val comparetor = implicitly[Ordering[T]]
+    println("CompareComm6 comparetor" + comparetor.hashCode())
+    if (comparetor.compare(o1, o2) > 0) o1 else o2
+  }
+}
+```
+
+### 17.6 协边、逆变和不变
+
+#### 17.6.1 基本介绍
+
++ Scala的协变(+)、逆变(-)，协变covariant、逆变contravariant、不可变invariant
++ 对于一个带类型参数的类型，比如List[T],如果对A及其子类型B,满足List[B]也符合List[A]的子类型，那么就称为covariance(协变)，如果List[A]是List[B]的子类型，即与原来的父子关系正相反，则称为contravariance(逆变)。如果一个类型支持协变或逆变，则称这个类型为variance(翻译为可变或者变型)否则称为invariance(不可变的)
++ 在java里，泛型类型都是invariant,比如List<String>并不是List<Object>的子类型。而Scala支持，可以在定义类型时声明(用加号表示协变，减号表示逆变)，如trait List[+T]在类型定义时声明为协变，这样会把List[String]作为List[Any]的子类型
+
+#### 17.6.2 应用案例
+
+```scala
+package net.codeshow.covariantDemoes
+
+object CovariantDemo01 {
+  def main(args: Array[String]): Unit = {
+    val t1: Temp3[Sub] = new Temp3[Sub]("hello")
+    //    val t2: Temp3[Sub] = new Temp3[Super]("hello") 错误
+    //    val t2: Temp3[Super] = new Temp3[Sub]("hello") 错误
+
+    val t4: Temp4[Sub] = new Temp4[Sub]("hello")
+    val t5: Temp4[Super] = new Temp4[Sub]("hello")
+    //    val t6: Temp4[Sub] = new Temp4[Super]("hello") //错误
+
+    val t7: Temp5[Sub] = new Temp5[Sub]("hello")
+    val t8: Temp5[Sub] = new Temp5[Super]("hello")
+    //    val t9: Temp5[Super] = new Temp5[Sub]("hello") 错误
+
+  }
+
+}
+
+//不变
+class Temp3[A](title: String) {
+  override def toString: String = {
+    title
+  }
+}
+
+class Temp4[+A](title: String) {
+  override def toString: String = {
+    title
+  }
+}
+
+//逆变
+class Temp5[-A](title: String) {
+  override def toString: String = {
+    title
+  }
+}
+
+//支持协边
+class Super //父类
+//sub是super的子类
+class Sub extends Super
+```
 
 
 
