@@ -377,9 +377,175 @@ hadoop fs -mkdir /directory
 
 ## 3.3 Yarn模式
 
+独立部署(Standalone)模式由Spark自身提供资源，无需其他框架提供资源。这种方式降低了和其他第三方资源框架的耦合性，独立性非常强。但是Spark主要是计算框架，而不是资源调度框架，所以本身提供的资源调度并不是它的强项，所以还是和其他专业的资源调度框架集成会更靠谱一些。
 
+### 3.3.1 解压缩文件
 
-该操作这个
+将spark-3.0.0-bin-hadoop3.2.tgz文件上传到Linux并解压缩，放到指定位置
 
-![image-20201219212525659](./images/31.png)
+```shell
+tar -zvxf spark-3.0.0-bin-hadoop3.2.tgz  -C ../module/
+```
+
+### 3.3.2 修改配置文件
+
+1. 修改 /opt/module/hadoop-3.3.0/etc/hadoop/yarn-site.xml，并分发
+
+   ```xml
+   <!--是否启动一个线程检查每个任务正使用的物理内存量，如果任务超出分配值，则直接将其杀掉，默认
+   是 true -->
+   <property>
+   <name>yarn.nodemanager.pmem-check-enabled</name>
+   <value>false</value>
+   </property>
+   <!--是否启动一个线程检查每个任务正使用的虚拟内存量，如果任务超出分配值，则直接将其杀掉，默认
+   是 true -->
+   <property>
+   <name>yarn.nodemanager.vmem-check-enabled</name>
+   <value>false</value>
+   </property>
+   ```
+
+2. 修改/opt/module/spark-yarn/conf/spark-env.sh,添加如下配置
+
+   ```shell
+   YARN_CONF_DIR=/opt/module/hadoop-3.3.0/etc/hadoop
+   JAVA_HOME=/opt/jdk1.8.0_261
+   ```
+
+### 3.3.3 启动HDFS以及Yarn集群
+
++ 启动Zookeeper集群
++ 启动Hadoop集群
++ 启动Spark集群
+
+### 3.3.4 提交应用
+
+```shell
+./spark-submit  \
+--class org.apache.spark.examples.SparkPi \
+--master yarn \
+--deploy-mode cluster \
+/opt/module/spark-yarn/examples/jars/spark-examples_2.12-3.0.0.jar \
+10
+```
+
+### 3.3.5 配置历史服务器
+
+1. 修改spark-defaults.conf.template文件名为spark-defaults.conf
+
+2. 修改spark-defaults.conf文件，配置日志存储路径
+
+   ```shell
+   spark.eventLog.enabled true
+   spark.eventLog.dir hdfs://Hadoop02:9000/directory
+   ```
+
+   注意:需要启动hadoop集群，HDFS上的目录需要提前存在
+
+   ```shell
+   sbin/start-dfs.sh
+   hadoop fs -mkdir /directory
+   ```
+
+3. 修改spark-env.sh，添加日志配置
+
+   ```shell
+   export SPARK_HISTORY_OPTS="
+   -Dspark.history.ui.port=18080
+   -Dspark.history.fs.logDirectory=hdfs://Hadoop02:9000/directory
+   -Dspark.history.retainedApplications=30"
+   ```
+
+   + 参数1含义:WEB UI访问的端口好为18080
+   + 参数2含义:指定历史服务器日志存储路径
+   + 参数3含义指定保存Application历史记录的个数，如果超过这个值，旧的应用程序信息将被删除，这个是内存中的应用数，而不是页面上显示的应用数
+
+   
+
+4. 修改spark-defaults.conf
+
+   ```shell
+   spark.yarn.historyServer.address=Hadoop02:18080
+   spark.history.ui.port=18080
+   ```
+
+   
+
+5. 启动历史服务
+
+   ```shell
+   sbin/start-history-server.sh
+   ```
+
+   
+
+6. 重新提交应用
+
+   ```shell
+   ./spark-submit  \
+   --class org.apache.spark.examples.SparkPi \
+   --master yarn \
+   --deploy-mode client \
+   /opt/module/spark-yarn/examples/jars/spark-examples_2.12-3.0.0.jar \
+   10
+   ```
+
+   
+
+7. Web页面查看日志
+
+   ![image-20201221123045644](./images/32.png)
+
+## 3.4 K8S & Mesos模式
+
+Mesos是Apache下的开源分布式资源管理框架，它被称为是分布式系统的内核，在Twitter得到广泛应用，管理着Twitter超过30，0000台服务器上的应用部署，但是在国内，依然使用着传统的Hadoop大数据框架，所以国内使用Mesos框架的并不多，但是原理其实都是差不多。
+
+![image-20201221124231709](/Users/cuiguangsong/go/src/docs/BigData/Spark/images/33.png)
+
+容器化部署是目前业界很流行的一项技术，基于Docker镜像运行能够让用户更加方便地对应用进行管理和运维。容器管理工具最为流行的就是Kubernetes(K8S),而Spark也在最近的版本中支持了K8S部署模式
+
+https://spark.apache.org/docs/latest/running-on-kubernetes.html
+
+![image-20201221124809894](./images/34.png)
+
+## 3.5 Windows模式
+
+Spark提供了可以在windows系统下启动本地集群的方式。
+
+### 3.5.1 解压缩文件
+
+将文件 spark-3.0.0-bin-hadoop3.2.tgz 解压缩到无中文无空格的路径中
+
+### 3.5.2 启动本地环境
+
+1. 执行解压缩文件路径下 bin 目录中的 spark-shell.cmd 文件，启动 Spark 本地环境
+   ![image-20201221125028606](./images/35.png)
+2. 在 bin 目录中创建 input 目录，并添加 word.txt 文件, 在命令行中输入脚本代码
+   ![image-20201221125104297](./images/36.png)
+
+### 3.5.3 命令行提交应用
+
+在 DOS 命令行窗口中执行提交指令
+
+```shell
+spark-submit --class org.apache.spark.examples.SparkPi --master 
+local[2] ../examples/jars/spark-examples_2.12-3.0.0.jar 10
+```
+
+![image-20201221125220422](./images/37.png)
+
+## 3.6 部署对比
+
+![image-20201221125806903](/Users/cuiguangsong/go/src/docs/BigData/Spark/images/38.png)
+
+## 3.7 端口号
+
++ Spark查看当前Spark-shell运行任务情况端口号:4040(计算)
++ Spark Master内部通信服务端口号:7077
++ Standalone模式下，Spark Master Web端口号：8080(资源)
++ Spark历史服务器端口号:18080
++ Hadoop Yarn任务运行情况查看端口号：8088
+
+# 4. Spark运行架构
 
