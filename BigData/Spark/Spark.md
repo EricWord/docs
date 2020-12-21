@@ -549,3 +549,131 @@ local[2] ../examples/jars/spark-examples_2.12-3.0.0.jar 10
 
 # 4. Spark运行架构
 
+## 4.2 运行架构
+
+Spark框架的核心是一个计算引擎，整体来说，它采用了标准master-slave的结构
+
+如下图所示，展示了一个Spark执行时的基本结构。图中的Driver表示master,负责管理整个集群中的作业任务调度。图中的Executor则是slave,负责实际执行任务。
+
+![image-20201221143744232](./images/39.png)
+
+## 4.2 核心组件
+
+从上图可以看出，对于Spark框架有两个核心组件:
+
+### 4.2.1 Driver
+
+Spark驱动器节点，用于执行Spark任务中的main方法，负责实际代码的执行工作。
+
+Driver在Spark作业执行时主要负责:
+
++ 将用户程序转化为作业(job)
++ 在Executor之间调度任务(task)
++ 跟踪Exexutor的执行情况
++ 通过UI展示查询运行情况
+
+实际上，无法准确地描述Driver的定义，因为在整个的编程过程中没有看到任何有关Driver的字眼。所以简单理解，所谓的Driver就是驱使整个应用运行起来的程序，也称之为Driver类
+
+### 4.2.2 Executor
+
+Spark Executor是集群中工作节点(Worker)中的一个JVM 进程，负责在Spark作业中运行具体任务(Task),彼此之间相互独立。Spark应用启动时，Executor节点被同时启动，并且始终伴随着整个Spark应用的声明周期而存在。如果有Executor节点发生了故障或崩溃，Spark应用也可以继续执行，会将出错节点上的任务调度到其他Executor节点上继续运行
+
+Executor有两个核心功能:
+
++ 负责运行组成Spark应用的任务，并将结果返回给驱动器进程
++ 它们通过自身的块管理器(Block Manager)为用户程序中要求缓存的RDD提供内存式存储。RDD是直接缓存在Executor进程内的，因此任务可以在运行时充分利用缓存数据加速运算
+
+### 4.2.3 Master & Worker
+
+Spark集群的独立部署环境中，不需要依赖其他的资源调度框架，自身就实现了资源调度的功能，所以环境中还有其他两个核心组件：Master和Worker,这里的Master是一个进程，主要负责资源的调度和分配，并进行集群的监控等职责，类似于Yarn环境中的RM，而Worker呢，也是进程，一个Worker运行在集群中的一台服务器上，由Master分配资源对数据进行并行的处理和计算，类似于Yarn环境中NM
+
+### 4.2.4 ApplicationMaster
+
+Hadoop用户向YARN集群提交应用程序时，提交程序中应该包含ApplicationMaster,用于向资源调度器申请执行任务的资源容器Container,运行用户自己的程序任务job,监控整个任务的执行，跟踪整个任务的状态，处理任务失败等异常情况。
+
+说的简单点就是ResourceManager(资源)和Driver(计算)之间的解耦合靠的就是ApplicationMaster.
+
+## 4.3核心概念
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
