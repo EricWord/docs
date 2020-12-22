@@ -648,21 +648,109 @@ Cluster模式将用于监控和调度的Driver模块启动在Yarn集群资源中
 
 # 5. Spark核心编程
 
+Spark计算框架为了能够进行高并发和高吞吐的数据处理，封装了三大数据结构，用于处理不同的应用场景。三大数据结构分别是:
 
++ RDD:弹性分布式数据集
++ 累加器:分布式共享只写变量
++ 广播变量:分布式共享只读变量
 
+## 5.1 RDD
 
+### 5.1.1 什么是RDD
 
+RDD(Resilient Distributed Dataset)叫做弹性分布式数据集，是Spark中最基本的数据处理模型。代码中是一个抽象类，它代表一个弹性的、不可变、可分区、里面的元素可并行计算的集合。
 
+1. 弹性
+   + 存储的弹性:内存与磁盘的自动切换 
+   + 容错的弹性:数据丢失可以自动恢复
+   + 计算的弹性:计算出错重试机制
+   + 分片的弹性:可根据需要重新分片
+2. 分布式:数据存储在大数据集群不同节点上
+3. 数据集:RDD封装了计算逻辑，并不保存数据
+4. 数据抽象：RDD是一个抽象类，需要子类具体实现
+5. 不可变：RDD封装了计算逻辑，是不可以改变的，想要改变，只能产生新的RDD，在新的RDD里面封装计算逻辑
+6. 可分区、并行计算
 
+### 5.1.2 核心属性
 
+![image-20201222203415842](./images/43.png)
 
++ 分区列表
+  RDD数据结构中存在分区列表，用于执行任务时并行计算，是实现分布式计算的重要属性
+  ![image-20201222203552276](./images/44.png)
++ 分区计算函数
+  Spark在计算时，是使用分区函数对每一个分区进行计算
+  ![image-20201222203703636](./images/45.png)
++ RDD之间的依赖关系
+  RDD是计算模型的封装，当需求中需要将多个计算模型进行组合时，就需要将多个RDD建立依赖关系
+  ![image-20201222203915429](/Users/cuiguangsong/go/src/docs/BigData/Spark/images/46.png)
 
++ 分区器(可选)
+  当数据为KV类型数据时，可以通过设定分区器自定义数据的分区
+  ![image-20201222204021163](./images/47.png)
 
++ 首选位置(可选)
 
+  计算数据时，可以根据计算节点的状态选择不同的节点位置进行计算
+  ![image-20201222204135230](/Users/cuiguangsong/go/src/docs/BigData/Spark/images/48.png)
 
+### 5.1.3执行原理
 
+从计算的角度来讲，数据处理过程中需要计算资源(内存&CPU)和计算模型(逻辑)，执行时，需要将计算资源和计算模型进行协调和整合。
 
+Spark框架在执行时，先申请资源，然后将应用程序的数据处理逻辑分解成一个一个的计算任务。然后将任务发到已经分配资源的计算节点上，按照指定的计算模型进行数据的计算。最后得到计算结果。
 
+RDD是Spark框架中用于数据处理的核心模型，下面是Yarn环境中，RDD的工作原理：
+
+1. 启动YARN集群环境
+   ![image-20201222204751985](./images/49.png)
+2. Spark通过申请资源创建调度节点和计算节点
+   ![image-20201222204837634](./images/50.png)
+
+3. Spark根据需求将计算逻辑根据分区划分成不同的任务
+   ![image-20201222205007785](./images/51.png)
+
+4. 调度节点将任务根据节点状态发送到对应的计算节点进行计算
+   ![image-20201222205105124](./images/52.png)
+
+   从以上流程可以看出RDD在整个流程中主要用于将逻辑进行封装，并生成Task发送给Executor节点执行计算
+
+   
+
+### 5.1.4 基础编程
+
+#### 5.1.4.1 RDD创建
+
+在Spark中创建RDD的方式分为4种:
+
+1. 从集合(内存)中创建RDD
+   从集合中创建RDD,Spark主要提供了两个方法parallelize和makeRDD
+
+   ```scala
+   package net.codeshow.spark.core.rdd.builder
+   
+   import org.apache.spark.{SparkConf, SparkContext}
+   
+   object Spark01_RDD_Memory {
+     def main(args: Array[String]): Unit = {
+       //@todo 准备环境
+       val sparkConf = new SparkConf().setMaster("local[*]").setAppName("RDD")
+       val sc = new SparkContext(sparkConf)
+   
+       //@todo 创建RDD
+       //从内存中创建RDD,将内存中的集合的数据作为处理的数据源
+       val seq = Seq[Int](1, 2, 3, 4)
+       //parallelize : 并行
+       //    val rdd = sc.parallelize(seq)
+       //上行代码的等价写法
+       //makeRDD 在底层实现时，还是调用的parallelize
+       val rdd = sc.makeRDD(seq)
+       rdd.collect().foreach(println)
+       //@todo 关闭环境
+       sc.stop()
+     }
+   }
+   ```
 
 
 
