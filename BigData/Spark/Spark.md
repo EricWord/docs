@@ -611,6 +611,67 @@ Spark Executor是集群中运行在工作节点(Worker)中的一个JVM进程，�
 
 ![image-20201221211852364](./images/41.png)
 
+大数据计算引擎框架我们根据使用方式的不同一般会分为四类，其中第一类就是Hadoop所承载的MapReduce,它将计算分为两个阶段，分别为Map阶段和Reduce阶段。对于上层应用来说，就不得不想方设法去拆分算法，甚至于不得不在上层应用实现多个Job的串联，以完成一个完整的算法，例如迭代计算。由于这样的弊端，催生了支持DAG的框架。因此支持DAG的框架被划分为第二代计算引擎。如Tez以及更上层的Oozie。这里不去细究各种DAG的实现之间的区别，不过对于当时的Tez和Oozie来说，大多还是批处理的任务。接下来就是以Spark为代表的第三代的计算引擎。第三代计算引擎的主要特点是Job内部的DAG支持(不跨越Job),以及实时计算。
+
+这里所谓的有向无环图，并不是真正意义上的图形，而是由Spark程序直接映射成的数据流的高级抽象模型。简单理解就是将整个程序的执行过程用图形表示出来，这样更直观，更便于理解，可以用于表示程序的拓扑结构。
+
+DAG(Directed Acyclic Graph)有向无环图是由点和线组成的拓扑图形，该图形具有方向，不会闭环。
+
+## 4.4 提交流程
+
+所谓的提交流程，其实就是我们开发人员根据需求写的应用程序通过Spark客户端提交给Spark运行环境执行计算的流程。在不同的部署环境中，这个提交过程基本相同，但是又有细微的差别，这里不进行详细的比较。但是因为在国内工作中，将Spark应用部署到Yarn环境中会更多一些，所以下面所讲的提交流程是基于Yarn环境的。
+
+![image-20201222095327596](./images/42.png)
+
+Spark应用程序提交到Yarn环境中执行的时候，一般会有两种部署执行的方式:Client和Cluster。两种模式主要区别在于:Driver程序的运行节点位。
+
+### 4.2.1 Yarn Client模式
+
+Client模式将用于监控和调度的Driver模块在客户端执行，而不是在Yarn中，所以一般用于测试。
+
++ Driverz在任务提交的本地机器上运行
++ Driver启动后会和ResourceManager通讯申请启动ApplicationMaster
++ ResourceManager分配container，在合适的NodeManager上启动ApplicationMaster,负责向ResourceManager申请Executor内存
++ ResourceManager接到ApplicationMaster的资源申请后会分配container,然后ApplicationMaster在资源分配指定的NodeManager上启动Executor进程。
++ Executor进程启动后会向Driver反向注册，Executor全部注册完成后Driver开始执行Main函数
++ 之后执行到Action算子时，触发一个Job,并根据宽依赖开始划分stage，每个stage生成对应的TaskSet，之后将task分发到各个Executor上执行。
+
+### 4.2.2 Yarn Cluster模式
+
+Cluster模式将用于监控和调度的Driver模块启动在Yarn集群资源中执行。一般应用于实际生产环境。
+
++ 在Yarn Cluster模式下，任务提交后会和ResourceManager通讯申请启动ApplicationMaster
++ 随后ResourceManager分配container,在合适的NodeManager上启动ApplicationMaster,此时的ApplicationMaster就是Driver
++ Driver启动后ResourceManager申请Executor内存，ResourceManager接到ApplicationMaster的资源申请会分配container,然后在合适的NodeManager上启动Executor进程
++ Executor进程启动后会向Driver反向注册，Executor全部注册完成后Driver开始执行Main函数
++ 之后执行到Actioin算子时，触发一个Job,并根据宽依赖开始划分stage,每个stage生成对应的TaskSet,之后将task分发到各个Executor上执行。
+
+# 5. Spark核心编程
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
