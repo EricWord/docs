@@ -752,6 +752,46 @@ RDD是Spark框架中用于数据处理的核心模型，下面是Yarn环境中�
    }
    ```
 
+2. 从外部存储(文件)创建RDD
+   由外部存储系统的数据创建RDD包括本地的文件系统、所有Hadoop支持的数据集比如HDFS、HBase等
+
+   ```scala
+   package net.codeshow.spark.core.rdd.builder
+   
+   import org.apache.spark.{SparkConf, SparkContext}
+   
+   object Spark02_RDD_File {
+     def main(args: Array[String]): Unit = {
+       //@todo 准备环境
+       val sparkConf = new SparkConf().setMaster("local[*]").setAppName("RDD")
+       val sc = new SparkContext(sparkConf)
+   
+       //@todo 创建RDD
+       //从文件中创建RDD,将文件中的数据作为处理的数据源
+       //路径默认是以当前环境的根路径为基准
+       //可以写绝对路径，也可以写相对路径
+       //    val rdd = sc.textFile("datas/1.txt")
+       //除了可以像上面那样，指定文件的路径，也可以指定多个文件所在的目录
+       //    val rdd = sc.textFile("datas")
+       //路径还可以使用通配符
+       //    val rdd = sc.textFile("datas/1*.txt")
+       //path还可以是分布式文件系统路径:HDFS
+       val rdd = sc.textFile("hdfs://Hadoop02:9000/test.txt")
+       rdd.collect().foreach(println)
+       //@todo 关闭环境
+       sc.stop()
+     }
+   }
+   ```
+
+3. 从其他RDD创建
+   主要是通过一个RDD运算完后，再产生新的RDD
+
+4. 直接创建RDD(new)
+   使用new的方式直接构造RDD,一般由Spark框架自身使用。
+
+#### 5.1.4.2 RDD并行度与分区
+
 
 
 
