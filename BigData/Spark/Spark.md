@@ -792,6 +792,440 @@ RDD是Spark框架中用于数据处理的核心模型，下面是Yarn环境中�
 
 #### 5.1.4.2 RDD并行度与分区
 
+默认情况下，Spark可以将一个作业切分多个任务后,发送给Executor节点并行计算，而能够并行计算的任务数量我们称之为并行度。这个数量可以在构建RDD时指定。记住，这里的并行执行的任务数量，并不是指的切分任务的数量，不要混淆。
+
+```scala
+package net.codeshow.spark.core.rdd.builder
+
+import org.apache.spark.{SparkConf, SparkContext}
+
+object Spark01_RDD_Memory_par {
+  def main(args: Array[String]): Unit = {
+    //@todo 准备环境
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("RDD")
+    sparkConf.set("spark.default.parallelism","3")
+    val sc = new SparkContext(sparkConf)
+
+    //@todo 创建RDD
+    //RDD的并行度 & 分区
+    //makeRDD可以传递两个参数，第二个参数表示分区的数量
+    //第二个参数如果不传递会使用默认值
+    //scheduler.conf.getInt("spark.default.parallelism", totalCores)
+    //    val rdd = sc.makeRDD(List(1, 2, 3, 4), 2)
+    //Spark在默认情况下，从配置对象中获取配置参数spark.default.parallelism
+    //如果获取不到，则使用totalCores属性，这个属性取值为当前环境的最大核数
+    val rdd = sc.makeRDD(List(1, 2, 3, 4))
+
+    //将处理的数据保存成分区文件
+    rdd.saveAsTextFile("output")
+    //@todo 关闭环境
+    sc.stop()
+  }
+}
+```
+
++ 读取内存数据时，数据可以按照并行度的设定进行数据的分区操作，数据分区规则的Spark核心源码如下:
+
+  ```scala
+  def positions(length: Long, numSlices: Int): Iterator[(Int, Int)] = {
+  (0 until numSlices).iterator.map { i =>
+  val start = ((i * length) / numSlices).toInt
+  val end = (((i + 1) * length) / numSlices).toInt
+  (start, end)
+   }
+  }
+  ```
+
++ 读取文件数据时，数据时按照Hadoop文件读取的规则进行切片分区，而切片规则和数据读取的规则有些差异，具体Spark核心源码如下:
+
+  ```scala
+  public InputSplit[] getSplits(JobConf job, int numSplits)
+  throws IOException {
+  long totalSize = 0; // compute total size
+  for (FileStatus file: files) { // check we have valid files
+  if (file.isDirectory()) {
+  throw new IOException("Not a file: "+ file.getPath());
+  }
+  totalSize += file.getLen();
+  }
+  long goalSize = totalSize / (numSplits == 0 ? 1 : numSplits);
+  long minSize = Math.max(job.getLong(org.apache.hadoop.mapreduce.lib.input.
+  FileInputFormat.SPLIT_MINSIZE, 1), minSplitSize);
+  ...
+  for (FileStatus file: files) {
+  ...
+  if (isSplitable(fs, path)) {
+  long blockSize = file.getBlockSize();
+  long splitSize = computeSplitSize(goalSize, minSize, blockSize);
+  ...
+  }
+  protected long computeSplitSize(long goalSize, long minSize,
+  long blockSize) {
+  return Math.max(minSize, Math.min(goalSize, blockSize));
+  }
+  ```
+
+#### 5.1.4.3 RDD转换算子
+
+RDD根据数据处理方式的不同将算子整体上分为Value类型、双Value类型和Key-Value类型
+
++ Value类型	
+
+  1. map
+
+     + 函数签名
+
+       ```scala
+       def map[U: ClassTag](f: T => U): RDD[U]
+       ```
+
+     + 函数说明
+       将处理的数据逐条进行映射转换，这里的转换可以是类型的转换，也可以是值的转换
+
+       ```scala
+       val dataRDD: RDD[Int] = sparkContext.makeRDD(List(1,2,3,4))
+       val dataRDD1: RDD[Int] = dataRDD.map(
+       num => {
+         num * 2
+       } )
+       val dataRDD2: RDD[String] = dataRDD1.map(
+       num => {
+       "" + num
+       } )
+       ```
+
+       小功能:从服务器日志数据apache.log中获取用户请求URL资源路径
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark01_RDD_Operator_Transform_test {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子-map
+           val rdd = sc.textFile("datas/apache.log")
+           //长的字符串转换成短的字符串
+           val mapRDD = rdd.map(
+             line => {
+               val datas = line.split(" ")
+               datas(6)
+             }
+           )
+           mapRDD.collect().foreach(println)
+           sc.stop()
+         }
+       }
+       ```
+
+  2. mapPartitions
+
+     + 函数签名
+
+       ```scala
+       def mapPartitions[U: ClassTag](
+       f: Iterator[T] => Iterator[U],
+       preservesPartitioning: Boolean = false): RDD[U]
+       ```
+
+     + 函数说明
+       将待处理的数据以分区为单位发送到计算节点进行处理，这里的处理是指可以进行任意的处理，哪怕是过来数据
+
+       ```scala
+       val dataRDD1: RDD[Int] = dataRDD.mapPartitions(
+       datas => {
+       datas.filter(_==2)
+       } )
+       ```
+
+       小功能:获取每个数据分区的最大值
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark02_RDD_Operator_Transform {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子-map
+           val rdd = sc.makeRDD(List(1, 2, 3, 4), 2)
+       
+           val mpRDD = rdd.mapPartitions(
+             iter => {
+               List(iter.max).iterator
+             }
+           )
+       
+           mpRDD.collect().foreach(println)
+       
+           sc.stop()
+         }
+       }
+       ```
+
+     + map和mapPartitions的区别
+       ***数据处理角度***
+       Map算子是分区内一个数据一个数据的执行，类似于串行操作。而mapPartitions算子是以分区为单位进行批处理操作
+       ***功能的角度***
+       map算子主要目的是将数据源中的数据进行转换和改变。但是不会减少或增多数据。mapPartitions算子需要传递一个迭代器，返回一个迭代器，没有要求元素的个数保持不变，所以可以增加或减少数据
+       ***性能的角度***
+       map算子因为类似于串行操作，所以性能比较低，而是mapPartitions算子类似于批处理，所以性能较高。但是mapPartitions算子会长时间占用内存，那么这样会导致内存可能不够用，出现内存溢出的错误。所以在内存有限的情况下，不推荐使用。
+
+  3. mapPartitionsWithIndex
+
+     + 函数签名
+
+       ```scala
+       def mapPartitionsWithIndex[U: ClassTag](
+       f: (Int, Iterator[T]) => Iterator[U],
+       preservesPartitioning: Boolean = false): RDD[U]
+       ```
+
+     + 函数说明
+       将待处理的数据以分区为单位发送到计算节点进行处理，这里的处理是指可以进行任意的处理，哪怕是过滤数据，在处理时同时可以获取当前分区索引
+
+       ```scala
+       val dataRDD1 = dataRDD.mapPartitionsWithIndex( (index, datas) => {
+       datas.map(index, _)
+       } )
+       ```
+
+       小功能:获取第二个数据分区的数据
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark03_RDD_Operator_Transform {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+           //@todo 算子-map
+           val rdd = sc.makeRDD(List(1, 2, 3, 4), 2)
+           val mpRDD = rdd.mapPartitionsWithIndex(
+             (index, iter) => {
+               if (index == 1) {
+                 iter
+               } else {
+                 Nil.iterator
+               }
+             }
+           )
+           mpRDD.collect().foreach(println)
+           sc.stop()
+         }
+       }
+       ```
+
+  4. flatMap
+
+     + 函数签名
+
+       ```scala
+       def flatMap[U: ClassTag](f: T => TraversableOnce[U]): RDD[U]
+       ```
+
+     + 函数说明
+       将处理的数据进行扁平化后再进行映射处理，所以算子也称之为扁平映射
+
+       ```scala
+       val dataRDD = sparkContext.makeRDD(List(
+       List(1,2),List(3,4)
+       ),1)
+       val dataRDD1 = dataRDD.flatMap(
+       list => list
+       )
+       ```
+
+       小功能:将List(List(1,2),3,List(4,5))进行扁平化操作
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark04_RDD_Operator_Transform2 {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子-map
+           val rdd = sc.makeRDD(List(List(1, 2), 3, List(4, 5)))
+       
+           val flatRDD = rdd.flatMap {
+             case list: List[_] => list
+             case dat => List(dat)
+           }
+           flatRDD.collect().foreach(println)
+           sc.stop()
+         }
+       }
+       ```
+
+  5. glom
+
+     + 函数签名
+
+       ```scala
+       def glom(): RDD[Array[T]]
+       ```
+
+     + 函数说明
+       将同一个分区的数据直接转换为相同类型的内存数组进行处理，分区不变
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark05_RDD_Operator_Transform {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子-map
+           val rdd = sc.makeRDD(List(1, 2, 3, 4), 2)
+           val glomRDD = rdd.glom()
+           glomRDD.collect().foreach(data => println(data.mkString(",")))
+           sc.stop()
+         }
+       }
+       ```
+
+       小功能:计算所有分区最大值求和(分区内取最大值，分区间最大值求和)
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark05_RDD_Operator_Transform_Test {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子
+           val rdd = sc.makeRDD(List(1, 2, 3, 4), 2)
+       
+           val glomRDD = rdd.glom()
+       
+           val maxRDD = glomRDD.map(
+             array => {
+               array.max
+             }
+           )
+           println(maxRDD.collect().sum)
+           sc.stop()
+         }
+       }
+       ```
+
+       
+
+  6. groupBy
+
+     + 函数签名
+
+       ```scala
+       def groupBy[K](f: T => K)(implicit kt: ClassTag[K]): RDD[(K, Iterable[T])]
+       ```
+
+     + 函数说明
+       将数据根据指定的规则进行分组，分区默认不变，但是数据会被打乱重新组合，我们将这样的操作称之为shuffle。极限情况下，数据可能被分在同一个分区中
+       一个组的数据在一个分区中，但是并不是说一个分区中只有一个组
+
+       ```scala
+       val dataRDD = sparkContext.makeRDD(List(1,2,3,4),1)
+       val dataRDD1 = dataRDD.groupBy(
+       _%2
+       )
+       ```
+
+       ***小功能:将List("Hello","Scala","Spark","Hadoop")根据单词首字母进行分组***
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark06_RDD_Operator_Transform1 {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子
+           val rdd = sc.makeRDD(List("Hello", "Spark", "Scala", "Hadoop"), 2)
+       
+           //分组和分区没有必然的关系
+           val groupRDD = rdd.groupBy(_.charAt(0))
+           groupRDD.collect().foreach(println)
+           sc.stop()
+         }
+       }
+       ```
+
+       小功能:从服务器日志数据apache.log中获取每个时间段访问量
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import java.text.SimpleDateFormat
+       import java.util.logging.SimpleFormatter
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark06_RDD_Operator_Transform_Test {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子
+       
+           val rdd = sc.textFile("datas/apache.log")
+           val timeRDD = rdd.map(
+             line => {
+               val datas = line.split(" ")
+               val time = datas(3)
+               //        time.substring(0,)
+               val sdf = new SimpleDateFormat("dd/MM/yyyy:HH:mm:ss")
+               val date = sdf.parse(time)
+       
+               val sdf1 = new SimpleDateFormat("HH")
+               val hour = sdf1.format(date)
+               (hour, 1)
+       
+             }
+           ).groupBy(_._1)
+       
+           timeRDD.map {
+             case (hour, iter) => {
+               (hour, iter.size)
+             }
+           }.collect().foreach(println)
+           sc.stop()
+         }
+       }
+       ```
+
+       
+
+  7. 
+
 
 
 
