@@ -1621,15 +1621,298 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
       ***reduceByKey***
 
       + 函数签名
+
+        ```scala
+        def reduceByKey(func: (V, V) => V): RDD[(K, V)]
+        def reduceByKey(func: (V, V) => V, numPartitions: Int): RDD[(K, V)]
+        ```
+
+      + 函数说明
+        可以将数据按照相同的key对value进行聚合
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
         
+        import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
+        
+        object Spark15_RDD_Operator_Transform {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd = sc.makeRDD(List(
+              ("a", 1), ("a", 2), ("a", 3), ("b", 4)
+            ))
+        
+            //reduceByKey:相同的key的数据进行value数据的聚合操作
+            //scala语言中一般的聚合操作都是两两聚合，spark基于scala开发,所以spark的聚合也是两两聚合
+            //如果key的数据只有1个，是不会参与运算的
+            val reduceRDD = rdd.reduceByKey(_ + _)
+            reduceRDD.collect().foreach(println)
+            sc.stop()
+          }
+        }
+        ```
 
-  15. 
+      ***groupByKey***
 
-  16. 
+      + 函数签名
 
-  17. 
+        ```scala
+        def groupByKey(): RDD[(K, Iterable[V])]
+        def groupByKey(numPartitions: Int): RDD[(K, Iterable[V])]
+        def groupByKey(partitioner: Partitioner): RDD[(K, Iterable[V])]
+        ```
 
-      
+      + 函数说明
+        将数据源的数据根据key对value进行分组
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
+        
+        import org.apache.spark.{SparkConf, SparkContext}
+        
+        object Spark16_RDD_Operator_Transform {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd = sc.makeRDD(List(
+              ("a", 1), ("a", 2), ("a", 3), ("b", 4)
+            ))
+        
+            //groupByKey:将数据源中的数据，相同key的数据分在一组，形成一个对偶元组
+            //元组中的第一个元素就是key
+            //元组中的第二个元素就是相同key的value的集合
+            val groupRDD = rdd.groupByKey()
+            groupRDD.collect().foreach(println)
+            val groupRDD1 = rdd.groupBy(_._1)
+            groupRDD1.collect().foreach(println)
+            sc.stop()
+          }
+        }
+        ```
+
+        ***reduceByKey和groupByKey的区别***
+
+        ***从shuffle的角度:***reduceByKey和groupByKey都存在shuffle的操作，但是reduceByKey可以在shuffle前对分区内相同key的数据进行预聚合(combine)功能，这样会减少落盘的数据量，而groupByKey只是进行分组，不存在数据量减少的问题，reduceByKey性能比较高
+        ***从功能的角度:***reduceByKey其实包含分组和聚合的功能。groupByKey只能分组，不能聚合，所以在分组聚合的场合下，推荐使用reduceByKey,如果仅仅是分组而不需要聚合，那么还是只能使用groupByKey
+
+      ***aggregateByKey***
+
+      + 函数签名
+
+        ```scala
+        def aggregateByKey[U: ClassTag](zeroValue: U)(seqOp: (U, V) => U,
+        combOp: (U, U) => U): RDD[(K, U)]
+        ```
+
+      + 函数说明
+        将数据根据不同的规则进行分区内计算和分区间计算
+
+        ```scala
+        val dataRDD1 =
+        sparkContext.makeRDD(List(("a",1),("b",2),("c",3)))
+        val dataRDD2 =
+        dataRDD1.aggregateByKey(0)(_+_,_+_)
+        ```
+
+        取出每个分区内相同key的最大值然后分区间相加
+
+        ```scala
+        // TODO : 取出每个分区内相同 key 的最大值然后分区间相加
+        // aggregateByKey 算子是函数柯里化，存在两个参数列表
+        // 1. 第一个参数列表中的参数表示初始值
+        // 2. 第二个参数列表中含有两个参数
+        // 2.1 第一个参数表示分区内的计算规则
+        // 2.2 第二个参数表示分区间的计算规则
+        val rdd =
+        sc.makeRDD(List(
+        ("a",1),("a",2),("c",3),
+        ("b",4),("c",5),("c",6)
+        ),2)
+        // 0:("a",1),("a",2),("c",3) => (a,10)(c,10)
+        // => (a,10)(b,10)(c,20)
+        // 1:("b",4),("c",5),("c",6) => (b,10)(c,10)
+        val resultRDD =
+        rdd.aggregateByKey(10)(
+        (x, y) => math.max(x,y),
+        (x, y) => x + y
+        )
+        resultRDD.collect().foreach(println)
+        ```
+
+      ***foldByKey***
+
+      + 函数签名
+
+        ```scala
+        def foldByKey(zeroValue: V)(func: (V, V) => V): RDD[(K, V)]
+        ```
+
+      + 函数说明
+        当分区内计算规则和分区间计算规则相同时，aggregateByKey就可以简化为foldByKey
+
+        ```scala
+        val dataRDD1 = sparkContext.makeRDD(List(("a",1),("b",2),("c",3)))
+        val dataRDD2 = dataRDD1.foldByKey(0)(_+_)
+        ```
+
+      ***combineByKey***
+
+      + 函数签名
+
+        ```scala
+        def combineByKey[C](
+        createCombiner: V => C,
+        mergeValue: (C, V) => C,
+        mergeCombiners: (C, C) => C): RDD[(K, C)]
+        ```
+
+      + 函数说明
+        最通用的对key-value型rdd进行聚集操作的聚集函数(aggregation function)。 类似于aggregate(),combineByKey()允许用户返回值的类型与输入不一致
+
+      ***小练习***
+
+      将数据 List(("a", 88), ("b", 95), ("a", 91), ("b", 93), ("a", 95), ("b", 98))求每个 key 的平
+
+      均值
+
+      ```scala
+      val list: List[(String, Int)] = List(("a", 88), ("b", 95), ("a", 91), ("b", 93), 
+      ("a", 95), ("b", 98))
+      val input: RDD[(String, Int)] = sc.makeRDD(list, 2)
+      val combineRdd: RDD[(String, (Int, Int))] = input.combineByKey(
+      (_, 1),
+      (acc: (Int, Int), v) => (acc._1 + v, acc._2 + 1),
+      (acc1: (Int, Int), acc2: (Int, Int)) => (acc1._1 + acc2._1, acc1._2 + acc2._2)
+      )
+      ```
+
+      ***reduceByKey、foldByKey、aggregateByKey、combineByKey的区别***
+
+      reduceByKey:相同Key的第一个数据不进行任何计算，分区内和分区间计算规则相同
+      foldByKey:相同key的第一个数据和初始值进行分区内计算，分区内和分区间计算规则相同
+      aggregateByKey:相同key的第一个数据和初始值进行分区内计算，分区内和分区间计算规则可以不同
+      combineByKey:当计算时，发现数据结构不满足要求时，可以让第一个数据转换结构。分区内和分区间计算规则不同。
+
+      ***sortByKey***
+
+      + 函数签名
+
+        ```scala
+        def sortByKey(ascending: Boolean = true, numPartitions: Int = self.partitions.length)
+        : RDD[(K, V)]
+        ```
+
+      + 函数说明
+        在一个(k,v)的RDD上调用，K必须实现Ordered接口(特质)，返回一个按照key进行排序的
+
+        ```scala
+        val dataRDD1 = sparkContext.makeRDD(List(("a",1),("b",2),("c",3)))
+        val sortRDD1: RDD[(String, Int)] = dataRDD1.sortByKey(true)
+        val sortRDD1: RDD[(String, Int)] = dataRDD1.sortByKey(false)
+        ```
+
+      ***join***
+
+      + 函数签名
+
+        ```scala
+        def join[W](other: RDD[(K, W)]): RDD[(K, (V, W))]
+        ```
+
+      + 函数说明
+        在类型为(K,V)和(K,W)的RDD上调用，返回一个相同key对应的所有元素连接在一起的(K,(v,W))的RDD
+
+      ***leftOuterJoin***
+
+      + 函数签名
+
+        ```scala
+        def leftOuterJoin[W](other: RDD[(K, W)]): RDD[(K, (V, Option[W]))]
+        ```
+
+      + 函数说明
+        类似于SQL语句的左外连接
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
+        
+        import org.apache.spark.{SparkConf, SparkContext}
+        
+        object Spark22_RDD_Operator_Transform {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd1 = sc.makeRDD(List(
+              ("a", 1), ("b", 2) //, ("c", 3),
+            ))
+        
+        
+            val rdd2 = sc.makeRDD(List(
+              ("a", 4), ("b", 5), ("c", 6),
+            ))
+        
+            val leftJoinRDD = rdd1.leftOuterJoin(rdd2)
+            val rightJoinRDD = rdd1.rightOuterJoin(rdd2)
+        
+            leftJoinRDD.collect().foreach(println)
+            //    rightJoinRDD.collect().foreach(println)
+            sc.stop()
+          }
+        }
+        ```
+
+      ***cogroup***
+
+      + 函数签名
+
+        ```scala
+        def cogroup[W](other: RDD[(K, W)]): RDD[(K, (Iterable[V], Iterable[W]))]
+        ```
+
+      + 函数说明
+        在类型为(K,V)和(K,W)的RDD上调用，返回一个(K,(Iterable<V>,Iterable<W>))类型的RDD
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
+        
+        import org.apache.spark.{SparkConf, SparkContext}
+        
+        object Spark23_RDD_Operator_Transform {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd1 = sc.makeRDD(List(
+              ("a", 1), ("b", 2) //, ("c", 3),
+            ))
+            val rdd2 = sc.makeRDD(List(
+              ("a", 4), ("b", 5), ("c", 6),
+            ))
+            //cogroup: connect + group
+            val cgRDD = rdd1.cogroup(rdd2)
+            cgRDD.collect().foreach(println)
+            sc.stop()
+          }
+        }
+        ```
+
+      #### 5.1.4.4 案例实操
+
+      1. 数据准备
+         agent.log:时间戳、省份、城市、用户、广告，中间字段使用空格分隔
+      2. 需求描述
+         统计出每一个省份每个广告被点击数量排行的Top3
+      3. 需求分析
+      4. 功能实现
+         
 
 
 
