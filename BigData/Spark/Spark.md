@@ -1338,9 +1338,142 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 
   9. distinct
 
-     
+     + 函数签名
 
-  10. Xxx
+       ```scala
+       def distinct()(implicit ord: Ordering[T] = null): RDD[T]
+       def distinct(numPartitions: Int)(implicit ord: Ordering[T] = null): RDD[T]
+       ```
+
+     + 函数说明
+       将数据集中重复的数据去重
+
+       ```scala
+       val dataRDD = sparkContext.makeRDD(List(
+       1,2,3,4,1,2
+       ),1)
+       val dataRDD1 = dataRDD.distinct()
+       val dataRDD2 = dataRDD.distinct(2)
+       ```
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark09_RDD_Operator_Transform {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+           //@todo 算子
+           val rdd = sc.makeRDD(List(1, 2, 3, 4, 1, 2, 3, 4))
+           val rdd1 = rdd.distinct()
+           rdd1.collect().foreach(println)
+           sc.stop()
+         }
+       }
+       ```
+
+       
+
+  10. coalesce
+
+      + 函数签名
+
+        ```scala
+        def coalesce(numPartitions: Int, shuffle: Boolean = false,
+        partitionCoalescer: Option[PartitionCoalescer] = Option.empty)
+        (implicit ord: Ordering[T] = null)
+        : RDD[T]
+        ```
+
+      + 函数说明
+        根据数据量缩减分区，用于大数据集过滤后，提高小数据集的执行效率，当Spark程序中，存在过多的小任务的时候，可以通过coalesce方法，收缩合并分区，减少分区的个数，减小任务调度成本
+
+        ```scala
+        val dataRDD = sparkContext.makeRDD(List(
+        1,2,3,4,1,2
+        ),6)
+        val dataRDD1 = dataRDD.coalesce(2)
+        ```
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
+        
+        import org.apache.spark.{SparkConf, SparkContext}
+        
+        object Spark10_RDD_Operator_Transform {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd = sc.makeRDD(List(1, 2, 3, 4, 5, 6), 3)
+            //coalesce方法默认情况下不会将分区的数据打乱重新组合
+            //这种情况下的缩减分区可能会导致数据不均衡，出现数据倾斜
+            //如果想要让数据均衡，可以进行shuffle处理
+            //    val newRDD = rdd.coalesce(2)
+            val newRDD = rdd.coalesce(2, shuffle = true)
+            newRDD.saveAsTextFile("output")
+            sc.stop()
+          }
+        }
+        ```
+
+        
+
+  11. repartition
+
+      + 函数签名
+
+        ```scala
+        def repartition(numPartitions: Int)(implicit ord: Ordering[T] = null): RDD[T]
+        ```
+
+      + 函数说明
+        该操作内部其实执行的是coalesce操作，参数shuffle的默认值为true。无论是将分区数多的RDD转换为分区数少的RDD,还是将分区数少的RDD转换为分区数多的RDD,repartition操作都可以完成，因为无论如何都会经过shuffle过程
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
+        
+        import org.apache.spark.{SparkConf, SparkContext}
+        
+        object Spark11_RDD_Operator_Transform {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd = sc.makeRDD(List(1, 2, 3, 4, 5, 6), 2)
+            //coalesce算子可以扩大分区，但是如果不进行shuffle操作是不起作用的
+            //所以如果想要实现扩大分区的效果，需要使用shuffle操作
+            //Spark提供了一个简化的操作
+            //缩减分区:coalesce,如果想要数据均衡，可以采用shuffle
+            //扩大分区:repartition
+            val newRDD = rdd.repartition(3)
+            newRDD.saveAsTextFile("output")
+            sc.stop()
+          }
+        }
+        ```
+
+        
+
+  12. sortBy
+
+      + 函数签名
+        
+
+  13. 
+
+  14. 
+
+  15. 
+
+  16. 
+
+      
 
 
 
