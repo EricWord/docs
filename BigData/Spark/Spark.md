@@ -1904,17 +1904,197 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
         }
         ```
 
-      #### 5.1.4.4 案例实操
+#### 5.1.4.4 案例实操
 
-      1. 数据准备
-         agent.log:时间戳、省份、城市、用户、广告，中间字段使用空格分隔
-      2. 需求描述
-         统计出每一个省份每个广告被点击数量排行的Top3
-      3. 需求分析
-      4. 功能实现
-         
+1. 数据准备
+   agent.log:时间戳、省份、城市、用户、广告，中间字段使用空格分隔
+2. 需求描述
+   统计出每一个省份每个广告被点击数量排行的Top3
+3. 需求分析
+4. 功能实现
+   
 
+#### 5.1.4.5 RDD行动算子
 
+1. reduce 
+
+   + 函数签名
+
+     ```scala
+     def reduce(f: (T, T) => T): T
+     ```
+
+   + 函数说明
+     聚集RDD中的所有元素，先聚合分区内数据，再聚合分区间数据
+
+     ```scala
+     val rdd: RDD[Int] = sc.makeRDD(List(1,2,3,4))
+     // 聚合数据
+     val reduceResult: Int = rdd.reduce(_+_)
+     ```
+
+     
+
+2. collect
+
+   + 函数签名
+
+     ```scala
+     def collect(): Array[T]
+     ```
+
+   + 函数说明
+     在驱动程序中，以数组Array的形式返回数据集的所有元素
+
+     ```scala
+     val rdd: RDD[Int] = sc.makeRDD(List(1,2,3,4))
+     // 收集数据到 Driver
+     rdd.collect().foreach(println)
+     ```
+
+     
+
+3. count
+
+   + 函数签名
+
+     ```scala
+     def count(): Long
+     ```
+
+   + 函数说明
+     返回RDD中元素的个数
+
+     ```scala
+     val rdd: RDD[Int] = sc.makeRDD(List(1,2,3,4))
+     // 返回 RDD 中元素的个数
+     val countResult: Long = rdd.count()
+     ```
+
+     
+
+4. first
+
+   + 函数签名
+
+     ```scala
+     def first(): T
+     ```
+
+   + 函数说明
+     返回RDD中的第一个元素
+
+     ```scala
+     val rdd: RDD[Int] = sc.makeRDD(List(1,2,3,4))
+     // 返回 RDD 中元素的个数
+     val firstResult: Int = rdd.first()
+     println(firstResult)
+     ```
+
+     
+
+5. take
+
+   + 函数签名
+
+     ```scala
+     def take(num: Int): Array[T]
+     ```
+
+   + 函数说明
+     返回一个由RDD的前n个元素组成的数组
+
+     ```scala
+     vval rdd: RDD[Int] = sc.makeRDD(List(1,2,3,4))
+     // 返回 RDD 中元素的个数
+     val takeResult: Array[Int] = rdd.take(2)
+     println(takeResult.mkString(","))
+     ```
+
+     
+
+6. takeOrdered
+
+   + 函数签名
+
+     ```scala
+     def takeOrdered(num: Int)(implicit ord: Ordering[T]): Array[T]
+     ```
+
+   + 函数说明
+     返回该RDD排序后的前n个元素组成的数组
+
+     ```scala
+     val rdd: RDD[Int] = sc.makeRDD(List(1,3,2,4))
+     // 返回 RDD 中元素的个数
+     val result: Array[Int] = rdd.takeOrdered(2)
+     ```
+
+     
+
+7. aggregate
+
+   + 函数签名
+
+     ```scala
+     def aggregate[U: ClassTag](zeroValue: U)(seqOp: (U, T) => U, combOp: (U, U) => U): U
+     ```
+
+   + 函数说明
+     分区的数据通过初始值和分区内的数据进行聚合，然后再和初始值进行分区间的数据聚合
+
+     ```scala
+     val rdd: RDD[Int] = sc.makeRDD(List(1, 2, 3, 4), 8)
+     // 将该 RDD 所有元素相加得到结果
+     //val result: Int = rdd.aggregate(0)(_ + _, _ + _)
+     val result: Int = rdd.aggregate(10)(_ + _, _ + _)
+     ```
+
+     
+
+8. fold
+
+   + 函数签名
+
+     ```scala
+     def fold(zeroValue: T)(op: (T, T) => T): T
+     ```
+
+   + 函数说明
+     折叠操作，aggregate的简化版操作
+
+     ```scala
+     val rdd: RDD[Int] = sc.makeRDD(List(1, 2, 3, 4))
+     val foldResult: Int = rdd.fold(0)(_+_)
+     ```
+
+     
+
+9. countByKey
+
+   + 函数签名
+
+     ```scala
+     def countByKey(): Map[K, Long]
+     ```
+
+   + 函数说明
+     统计每种key的个数
+
+     ```scala
+     val rdd: RDD[(Int, String)] = sc.makeRDD(List((1, "a"), (1, "a"), (1, "a"), (2, 
+     "b"), (3, "c"), (3, "c")))
+     // 统计每种 key 的个数
+     val result: collection.Map[Int, Long] = rdd.countByKey()
+     ```
+
+     
+
+10. save相关算子
+
+    + 函数签名
+
+11. xxx
 
 
 
