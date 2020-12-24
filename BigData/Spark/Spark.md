@@ -1584,11 +1584,50 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 
       
 
-  14. 
+  14. Key-Value类型
+      ***partitionBy***
+
+      + 函数签名
+
+        ```scala
+        def partitionBy(partitioner: Partitioner): RDD[(K, V)]
+        ```
+
+      + 函数说明
+        将数据按照指定Partitioner重新进行分区。Spark默认的分区器是HashPartitioner
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
+        
+        import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
+        
+        object Spark14_RDD_Operator_Transform {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd = sc.makeRDD(List(1, 2, 3, 4), 2)
+            val mapRDD = rdd.map((_, 1))
+        
+            //partitionBy 根据指定的分区规则对数据进行重分区
+            mapRDD.partitionBy(new HashPartitioner(2)).saveAsTextFile("output")
+        
+            sc.stop()
+          }
+        }
+        ```
+
+      ***reduceByKey***
+
+      + 函数签名
+        
 
   15. 
 
   16. 
+
+  17. 
 
       
 
