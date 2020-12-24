@@ -1463,9 +1463,44 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
   12. sortBy
 
       + 函数签名
+
+        ```scala
+        def sortBy[K](
+        f: (T) => K,
+          ascending: Boolean = true,
+        numPartitions: Int = this.partitions.length)
+        (implicit ord: Ordering[K], ctag: ClassTag[K]): RDD[T]
+        ```
+
+      + 函数说明
+        该操作用于排序数据。在排序之前，可以将数据通过f函数进行处理，之后按照f函数处理的结果进行排序，默认为升序排列。排序后新产生的RDD的分区数与原RDD的分区数一致。中间存在shuffle的过程。
+
+        ```scala
+        package net.codeshow.spark.core.rdd.operator.transform
+        
+        import org.apache.spark.{SparkConf, SparkContext}
+        
+        object Spark12_RDD_Operator_Transform1 {
+          def main(args: Array[String]): Unit = {
+            //@todo 准备环境
+            val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+            val sc = new SparkContext(sparkConf)
+            //@todo 算子
+            val rdd = sc.makeRDD(List(("1", 1), ("11", 2), ("2", 3)), 2)
+            //sortBy方法可以根据指定的规则对数据源中的数据进行排序，默认为升序
+            //第二个参数可以改变排序的方式
+            //sortBy默认情况下不会改变分区，但是中间存在shuffle操作
+            val newRDD = rdd.sortBy(t => t._1.toInt, ascending = false)
+            newRDD.collect().foreach(println)
+            sc.stop()
+          }
+        }
+        ```
+
         
 
-  13. 
+  13. 双Value类型
+      
 
   14. 
 
