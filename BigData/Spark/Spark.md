@@ -1224,7 +1224,123 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 
        
 
-  7. 
+  7. filter
+
+     + 函数签名
+
+       ```scala
+       def filter(f: T => Boolean): RDD[T]
+       ```
+
+     + 函数说明
+       将数据根据指定的规则进行筛选过滤，符合规则的数据保留，不符合规则的数据丢弃。当数据进行筛选过滤后，分区不变，但是分区内的数据可能不均衡，生产环境下，可能会出现数据倾斜。
+
+       ```scala
+       val dataRDD = sparkContext.makeRDD(List(
+       1,2,3,4
+       ),1)
+       val dataRDD1 = dataRDD.filter(_%2 == 0)
+       ```
+
+       ***小功能:从服务器日志数据apache.log中获取2015年5月17日的请求路径***
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark07_RDD_Operator_Transform_Test {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子
+           val rdd = sc.textFile("datas/apache.log")
+           rdd.filter(
+             line => {
+               val datas = line.split(" ")
+               val time = datas(3)
+               time.startsWith("17/05/2015")
+             }
+           ).collect().foreach(println)
+           sc.stop()
+         }
+       }
+       ```
+
+       
+
+  8. sample
+
+     + 函数签名
+
+       ```scala
+       def sample(
+       withReplacement: Boolean,
+       fraction: Double,
+       seed: Long = Utils.random.nextLong): RDD[T]
+       ```
+
+     + 函数说明
+       根据指定的规则从数据集中抽取数据
+
+       ```scala
+       val dataRDD = sparkContext.makeRDD(List(
+       1,2,3,4
+       ),1)
+       // 抽取数据不放回（伯努利算法）
+       // 伯努利算法：又叫 0、1 分布。例如扔硬币，要么正面，要么反面。
+       // 具体实现：根据种子和随机算法算出一个数和第二个参数设置几率比较，小于第二个参数要，大于不
+       要
+       // 第一个参数：抽取的数据是否放回，false：不放回
+       // 第二个参数：抽取的几率，范围在[0,1]之间,0：全不取；1：全取；
+       // 第三个参数：随机数种子
+       val dataRDD1 = dataRDD.sample(false, 0.5)
+       // 抽取数据放回（泊松算法）
+       // 第一个参数：抽取的数据是否放回，true：放回；false：不放回
+       // 第二个参数：重复数据的几率，范围大于等于 0.表示每一个元素被期望抽取到的次数
+       // 第三个参数：随机数种子
+       val dataRDD2 = dataRDD.sample(true, 2)
+       ```
+
+       ```scala
+       package net.codeshow.spark.core.rdd.operator.transform
+       
+       import org.apache.spark.{SparkConf, SparkContext}
+       
+       object Spark08_RDD_Operator_Transform {
+         def main(args: Array[String]): Unit = {
+           //@todo 准备环境
+           val sparkConf = new SparkConf().setMaster("local[*]").setAppName("Operator")
+           val sc = new SparkContext(sparkConf)
+       
+           //@todo 算子
+           val rdd = sc.makeRDD(List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+           //sample算子需要传递三个参数
+           //1.第一个参数表示抽取数据后是否将数据返回true(放回)，false(丢弃)
+           //2.第二个参数表示
+           // 抽取不放回的场合:数据源中每条数据被抽取的概率
+           //抽取放回的场合:
+           //基准值的概念
+           //3.第三个参数表示，抽取数据时随机算法的种子，如果不传递第三个参数，那么使用的是当前系统时间
+           println(rdd.sample(
+             true,
+             2,
+             //      1
+           ).collect().mkString(","))
+           sc.stop()
+         }
+       }
+       ```
+
+       
+
+  9. distinct
+
+     
+
+  10. Xxx
 
 
 
