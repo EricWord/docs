@@ -2399,8 +2399,77 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 #### 5.1.4.8 RDD持久化
 
 1. RDD Cache缓存
+   RDD通过Cache或者Persist方法将前面的计算结果缓存，默认情况下会把数据缓存在JVM的堆内存中。但是并不是这两个方法被调用时立即缓存，而是触发后面的action算子时，该RDD将会被缓存在计算节点的内存中，并供后面重用
+
+   ```scala
+   // cache 操作会增加血缘关系，不改变原有的血缘关系
+   println(wordToOneRdd.toDebugString)
+   // 数据缓存。
+   wordToOneRdd.cache()
+   // 可以更改存储级别
+   //mapRdd.persist(StorageLevel.MEMORY_AND_DISK_2)
+   ```
+
+   ***存储级别***
+
+   ```scala
+   object StorageLevel {
+   val NONE = new StorageLevel(false, false, false, false)
+   val DISK_ONLY = new StorageLevel(true, false, false, false)
+   val DISK_ONLY_2 = new StorageLevel(true, false, false, false, 2)
+   val MEMORY_ONLY = new StorageLevel(false, true, false, true)
+   val MEMORY_ONLY_2 = new StorageLevel(false, true, false, true, 2)
+   val MEMORY_ONLY_SER = new StorageLevel(false, true, false, false)
+   val MEMORY_ONLY_SER_2 = new StorageLevel(false, true, false, false, 2)
+   val MEMORY_AND_DISK = new StorageLevel(true, true, false, true)
+   val MEMORY_AND_DISK_2 = new StorageLevel(true, true, false, true, 2)
+   val MEMORY_AND_DISK_SER = new StorageLevel(true, true, false, false)
+   val MEMORY_AND_DISK_SER_2 = new StorageLevel(true, true, false, false, 2)
+   val OFF_HEAP = new StorageLevel(true, true, true, false, 1)
+   ```
+
+   ![image-20201225173001405](./images/55.png)
+
+   ​	缓存有可能丢失，或者存储于内存的数据由于内存不足儿被删除，RDD的缓存容错机制保证了即使缓存丢失也能保证计算的正确执行。通过基于RDD的一系列转换，丢失的数据会被重算，由于RDD的各个Partition是相对独立的，因此只需要计算丢失的那部分即可，并不需要重算全部Partition
+
+   ​	Spark会自动对一些Shuffle操作的中间数据做持久化操作(比如:reduceByKey)。这样做的目的是为了当一个节点Shuffle失败了避免重新计算整个输入。但是，在实际使用的时候，如果想重用数据，仍然建议调用persist或cache
+
+   
+
+2. RDD CheckPoint 检查点
+   所谓的检查点其实就是通过将RDD中间结果写入磁盘。由于血缘关系依赖过长会造成容错成本过高，这样就不如在中间阶段做检查点容错，如果检查点之后有节点出现问题，可以从检查点开始重做血缘，减少了开销。
+   ***注意:***对RDD进行checkpoint操作并不会马上被执行，必须执行Action操作才能触发
+
+   ```scala
+   // 设置检查点路径
+   sc.setCheckpointDir("./checkpoint1")
+   // 创建一个 RDD，读取指定位置文件:hello atguigu atguigu
+   val lineRdd: RDD[String] = sc.textFile("input/1.txt")
+   // 业务逻辑
+   val wordRdd: RDD[String] = lineRdd.flatMap(line => line.split(" "))
+   val wordToOneRdd: RDD[(String, Long)] = wordRdd.map {
+   word => {
+   (word, System.currentTimeMillis())
+   } }
+   // 增加缓存,避免再重新跑一个 job 做 checkpoint
+   wordToOneRdd.cache()
+   // 数据检查点：针对 wordToOneRdd 做检查点计算
+   wordToOneRdd.checkpoint()
+   // 触发执行逻辑
+   wordToOneRdd.collect().foreach(println)
+   ```
+
+   
+
+3. 缓存和检查点区别
+
+   + Cache缓存只是将数据保存起来，不切断血缘依赖。checkpoint检查点切断血缘依赖。
+   + cache缓存的数据通常存储在磁盘、内存等地方，可靠性低。checkpoint的数据通常存储在HDFS等容错、高可用的文件系统，可靠性高。
+   + 建议对checkpoint()的RDD使用cache缓存，这样checkpoint的job只需从cache缓存中读取数据即可，否则需要再从头计算一次RDD。
 
 
+
+#### 5.1.4.9 RDD分区器
 
 
 
