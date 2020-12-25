@@ -2227,12 +2227,178 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 #### 5.1.4.7 RDD依赖关系
 
 1. RDD血缘关系
+   RDD只支持粗粒度转换，即在大量记录上执行的单个操作。将创建RDD的一系列Lineage(血统)记录下来，以便恢复丢失的分区。RDD的Lineage会记录RDD的元数据信息和转换行为，当该RDD的部分数据丢失时，它可以根据这些信息来重新运算和恢复丢失的数据分区。
+
+   ```scala
+   val fileRDD: RDD[String] = sc.textFile("input/1.txt")
+   println(fileRDD.toDebugString)
+   println("----------------------")
+   val wordRDD: RDD[String] = fileRDD.flatMap(_.split(" "))
+   println(wordRDD.toDebugString)
+   println("----------------------")
+   val mapRDD: RDD[(String, Int)] = wordRDD.map((_,1))
+   println(mapRDD.toDebugString)
+   println("----------------------")
+   val resultRDD: RDD[(String, Int)] = mapRDD.reduceByKey(_+_)
+   println(resultRDD.toDebugString)
+   resultRDD.collect()
+   ```
+
    
-2. xx
 
+2. RDD依赖关系
+   这里所谓的依赖关系，其实就是两个相邻RDD之间的关系
 
+   ```scala
+   val sc: SparkContext = new SparkContext(conf)
+   val fileRDD: RDD[String] = sc.textFile("input/1.txt")
+   println(fileRDD.dependencies)
+   println("----------------------")
+   val wordRDD: RDD[String] = fileRDD.flatMap(_.split(" "))
+   println(wordRDD.dependencies)
+   println("----------------------")
+   val mapRDD: RDD[(String, Int)] = wordRDD.map((_,1))
+   println(mapRDD.dependencies)
+   println("----------------------")
+   val resultRDD: RDD[(String, Int)] = mapRDD.reduceByKey(_+_)
+   println(resultRDD.dependencies)
+   resultRDD.collect()
+   ```
 
+   
 
+3. RDD窄依赖
+   窄依赖表示每一个父(上游)RDD的Partition最多被子(下游)RDD的一个Partition使用，窄依赖我们形象地比喻为独生子女
+
+   ```scala
+   class OneToOneDependency[T](rdd: RDD[T]) extends NarrowDependency[T](rdd)
+   ```
+
+4. RDD宽依赖
+   宽依赖表示同一个父(上游)RDD的Partition被多个子(下游)RDD的Partition依赖，会引起Shufflem,总结:宽依赖我们形象地比喻为多生。
+
+   ```scala
+   class ShuffleDependency[K: ClassTag, V: ClassTag, C: ClassTag](
+   @transient private val _rdd: RDD[_ <: Product2[K, V]],
+   val partitioner: Partitioner,
+   val serializer: Serializer = SparkEnv.get.serializer,
+   val keyOrdering: Option[Ordering[K]] = None,
+   val aggregator: Option[Aggregator[K, V, C]] = None,
+   val mapSideCombine: Boolean = false)
+   extends Dependency[Product2[K, V]]
+   ```
+
+   
+
+5. RDD阶段划分
+   DAG(Directed Acyclic Graph)有向无环图是由点和线组成的拓扑图形，该图形具有方向，不会闭环。例如DAG记录了RDD的转换过程和任务的阶段
+   ![image-20201225141258897](./images/53.png)
+
+6. RDD阶段划分源码
+
+   ```scala
+   try {
+   // New stage creation may throw an exception if, for example, jobs are run on 
+   a
+   // HadoopRDD whose underlying HDFS files have been deleted.
+   finalStage = createResultStage(finalRDD, func, partitions, jobId, callSite)
+   } catch {
+   case e: Exception =>
+   logWarning("Creating new stage failed due to exception - job: " + jobId, e)
+   listener.jobFailed(e)
+   return
+   }
+   ……
+   private def createResultStage(
+   rdd: RDD[_],
+   func: (TaskContext, Iterator[_]) => _,
+   partitions: Array[Int],
+   jobId: Int,
+   callSite: CallSite): ResultStage = {
+   val parents = getOrCreateParentStages(rdd, jobId)
+   val id = nextStageId.getAndIncrement()
+   val stage = new ResultStage(id, rdd, func, partitions, parents, jobId, callSite)
+   stageIdToStage(id) = stage
+   updateJobIdStageIdMaps(jobId, stage)
+   stage
+   }
+   ……
+   private def getOrCreateParentStages(rdd: RDD[_], firstJobId: Int): List[Stage] 
+   = {
+   getShuffleDependencies(rdd).map { shuffleDep =>
+   getOrCreateShuffleMapStage(shuffleDep, firstJobId)
+   }.toList
+   }
+   ……
+   private[scheduler] def getShuffleDependencies(
+   rdd: RDD[_]): HashSet[ShuffleDependency[_, _, _]] = {
+   val parents = new HashSet[ShuffleDependency[_, _, _]]
+   val visited = new HashSet[RDD[_]]
+   val waitingForVisit = new Stack[RDD[_]]
+   waitingForVisit.push(rdd)
+   while (waitingForVisit.nonEmpty) {
+   val toVisit = waitingForVisit.pop()
+   if (!visited(toVisit)) {
+   visited += toVisit
+   toVisit.dependencies.foreach {
+   case shuffleDep: ShuffleDependency[_, _, _] =>
+   parents += shuffleDep
+   case dependency =>
+   waitingForVisit.push(dependency.rdd)
+   } } }
+   parents
+   }
+   ```
+
+   
+
+7. 任务划分
+   RDD任务切分中间分为:Application、Job、Stage和Task
+
+   + Application:初始化一个SparkContext即生成一个Application
+   + Job:一个Action算子就会生成一个Job
+   + Stage:Stage等于宽依赖(ShuffleDependency)的个数加1
+   + Task:一个Stage阶段中，最后一个RDD的分区个数就是Task的个数
+
+   注意:Application->Job->Stage->Task每一层都是1对n的关系。
+
+   ![image-20201225143004704](./images/54.png)
+
+8. RDD任务划分源码
+
+   ```scala
+   val tasks: Seq[Task[_]] = try {
+   stage match {
+   case stage: ShuffleMapStage =>
+   partitionsToCompute.map { id =>
+   val locs = taskIdToLocations(id)
+   val part = stage.rdd.partitions(id)
+   new ShuffleMapTask(stage.id, stage.latestInfo.attemptId,
+   taskBinary, part, locs, stage.latestInfo.taskMetrics, properties, 
+   Option(jobId),
+   Option(sc.applicationId), sc.applicationAttemptId)
+   }
+   case stage: ResultStage =>
+   partitionsToCompute.map { id =>
+   val p: Int = stage.partitions(id)
+   val part = stage.rdd.partitions(p)
+   val locs = taskIdToLocations(id)
+   new ResultTask(stage.id, stage.latestInfo.attemptId,
+   taskBinary, part, locs, id, properties, stage.latestInfo.taskMetrics,
+   Option(jobId), Option(sc.applicationId), sc.applicationAttemptId)
+   } }
+   ……
+   val partitionsToCompute: Seq[Int] = stage.findMissingPartitions()
+   ……
+   override def findMissingPartitions(): Seq[Int] = {
+   mapOutputTrackerMaster
+   .findMissingPartitions(shuffleDep.shuffleId)
+   .getOrElse(0 until numPartitions) }
+   ```
+
+#### 5.1.4.8 RDD持久化
+
+1. RDD Cache缓存
 
 
 
