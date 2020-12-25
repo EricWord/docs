@@ -2471,6 +2471,97 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 
 #### 5.1.4.9 RDD分区器
 
+Spark目前支持Hash分区、Range分区和用户自定义分区。Hash分区为当前的默认分区。分区器直接决定了RDD中分区的个数、RDD中每条数据经过Shuffle后进入哪个分区，进而决定了Reduce的个数。
+
++ 只有Key-Value类型的RDD才有分区器，非Key-Value类型的RDD分区的值是None
++ 每个RDD的分区ID范围:0~(numPartitions-1)，决定这个值是属于哪个分区的。
+
+1. Hash分区:对于给定的key，计算其hashCode,并除以分区个数取余
+
+   ```scala
+   class HashPartitioner(partitions: Int) extends Partitioner {
+   require(partitions >= 0, s"Number of partitions ($partitions) cannot be 
+   negative.")
+   def numPartitions: Int = partitions
+   def getPartition(key: Any): Int = key match {
+   case null => 0
+   case _ => Utils.nonNegativeMod(key.hashCode, numPartitions)
+   }
+   override def equals(other: Any): Boolean = other match {
+   case h: HashPartitioner =>
+   h.numPartitions == numPartitions
+   case _ =>
+   false
+   }
+   override def hashCode: Int = numPartitions
+   }
+   ```
+
+   
+
+2. Range分区：将一定范围内的数据映射到一个分区中，尽量保证每个分区数据均匀，而且分区间有序
+
+   ```scala
+   class RangePartitioner[K : Ordering : ClassTag, V](
+   partitions: Int,
+   rdd: RDD[_ <: Product2[K, V]],
+   private var ascending: Boolean = true)
+   extends Partitioner {
+   // We allow partitions = 0, which happens when sorting an empty RDD under the 
+   default settings.
+   require(partitions >= 0, s"Number of partitions cannot be negative but found 
+   $partitions.")
+   private var ordering = implicitly[Ordering[K]]
+   // An array of upper bounds for the first (partitions - 1) partitions
+   private var rangeBounds: Array[K] = {
+   ...
+   }
+   def numPartitions: Int = rangeBounds.length + 1
+   private var binarySearch: ((Array[K], K) => Int) = 
+   CollectionsUtils.makeBinarySearch[K]
+   def getPartition(key: Any): Int = {
+   val k = key.asInstanceOf[K]
+   var partition = 0
+   if (rangeBounds.length <= 128) {
+   // If we have less than 128 partitions naive search
+   while (partition < rangeBounds.length && ordering.gt(k, 
+   rangeBounds(partition))) {
+   partition += 1
+   }
+   } else {
+   // Determine which binary search method to use only once.
+   partition = binarySearch(rangeBounds, k)
+   // binarySearch either returns the match location or -[insertion point]-1
+   if (partition < 0) {
+   partition = -partition-1 }
+   if (partition > rangeBounds.length) {
+   partition = rangeBounds.length
+   } }
+   if (ascending) {
+   partition
+   } else {
+   rangeBounds.length - partition
+   } }
+   override def equals(other: Any): Boolean = other match {
+   ...
+   }
+   override def hashCode(): Int = {
+   ...
+   }
+     @throws(classOf[IOException])
+   private def writeObject(out: ObjectOutputStream): Unit = 
+   Utils.tryOrIOException {
+   ...
+   }
+   @throws(classOf[IOException])
+   private def readObject(in: ObjectInputStream): Unit = Utils.tryOrIOException 
+   {
+   ...
+   } }
+   ```
+
+#### 5.1.4.10 RDD文件读取与保存
+
 
 
 
