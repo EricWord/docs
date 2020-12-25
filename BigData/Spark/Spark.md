@@ -2092,13 +2092,58 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 
 10. save相关算子
 
+    + 函数签名 
+
+      ```scala
+      def saveAsTextFile(path: String): Unit
+      def saveAsObjectFile(path: String): Unit
+      def saveAsSequenceFile(
+      path: String,
+      codec: Option[Class[_ <: CompressionCodec]] = None): Unit
+      ```
+
+    + 函数说明
+      将数据保存到不同格式的文件中
+
+      ```scala
+      // 保存成 Text 文件
+      rdd.saveAsTextFile("output")
+      // 序列化成对象保存到文件
+      rdd.saveAsObjectFile("output1")
+      // 保存成 Sequencefile 文件
+      rdd.map((_,1)).saveAsSequenceFile("output2")
+      ```
+
+      
+
+11. foreach
+
     + 函数签名
 
-11. xxx
+      ```scala
+      def foreach(f: T => Unit): Unit = withScope {
+      val cleanF = sc.clean(f)
+      sc.runJob(this, (iter: Iterator[T]) => iter.foreach(cleanF))
+      }
+      ```
+
+    + 函数说明
+      分布式遍历RDD中的每一个元素，调用指定函数
+
+      ```scala
+      val rdd: RDD[Int] = sc.makeRDD(List(1,2,3,4))
+      // 收集后打印
+      rdd.map(num=>num).collect().foreach(println)
+      println("****************")
+      // 分布式打印
+      rdd.foreach(println)
+      ```
 
 
 
+#### 5.1.4.6 RDD序列化
 
+1. 闭包检查
 
 
 
