@@ -2144,6 +2144,91 @@ RDD根据数据处理方式的不同将算子整体上分为Value类型、双Val
 #### 5.1.4.6 RDD序列化
 
 1. 闭包检查
+   从计算的角度，算子以外的代码都是在Driver端执行，算子里面的代码都是在Executor端执行。那么在scala的函数式编程中，就会导致算子内经常会用到算子外的数据，这样就形成了闭包的效果，如果使用的算子外的数据无法序列化，就意味着无法传值给Executor端执行，就会发生错误，所以需要在执行任务计算之前，检测闭包内的对象是否可以进行序列化，这个操作我们称之为闭包检测。scala2.12版本后闭包编译方式发生了改变
+
+2. 序列化方法和属性
+
+   
+
+   ```scala
+   package net.codeshow.spark.core.rdd.serial
+   
+   import org.apache.spark.rdd.RDD
+   import org.apache.spark.{SparkConf, SparkContext}
+   
+   object Spark01_RDD_Serial {
+     def main(args: Array[String]): Unit = {
+       val sparkConf = new SparkConf().setMaster("local[*]").setAppName("WordCount")
+       val sc = new SparkContext(sparkConf)
+   
+       val rdd = sc.makeRDD(Array("hello world", "hello spark", "hive", "atguigu"))
+       val search = new Search("h")
+       //    search.getMatch1(rdd).collect().foreach(println)
+       search.getMatch2(rdd).collect().foreach(println)
+     }
+   
+     //查询对象
+     //类的构造参数其实是类的属性
+     //构造参数需要进行闭包就检测，其实就等同于类进行闭包检测
+     class Search(query: String) {
+   
+       def isMatch(s: String): Boolean = {
+         s.contains(query)
+       }
+   
+       def getMatch1(rdd: RDD[String]): RDD[String] = {
+         rdd.filter(isMatch)
+       }
+   
+       def getMatch2(rdd: RDD[String]): RDD[String] = {
+         val s = query
+         rdd.filter(x => x.contains(s))
+       }
+     }
+   }
+   ```
+
+3. Kryo序列化框架
+   参考地址: https://github.com/EsotericSoftware/kryo
+   Java的序列化能够序列化任何的类，但是比较重(序列化后字节多)，序列化后，对象的提交也比较大。Spark出于性能的考虑，Spark2.0开始支持Kryo序列化机制。Kryo速度是Serializable的10倍。当RDD在shuffle数据的时候，简单数据类型、数组和字符串类型已经在Spark内部使用Kryo来序列化。
+   ***注意:***即使使用Kryo序列化，也要继承Serializable接口。
+
+   ```scala
+   object serializable_Kryo {
+   def main(args: Array[String]): Unit = {
+   val conf: SparkConf = new SparkConf()
+   .setAppName("SerDemo")
+   .setMaster("local[*]")
+   // 替换默认的序列化机制
+   .set("spark.serializer", 
+   "org.apache.spark.serializer.KryoSerializer")
+   // 注册需要使用 kryo 序列化的自定义类
+   .registerKryoClasses(Array(classOf[Searcher]))
+   val sc = new SparkContext(conf)
+   val rdd: RDD[String] = sc.makeRDD(Array("hello world", "hello atguigu", 
+   "atguigu", "hahah"), 2)
+   val searcher = new Searcher("hello")
+   val result: RDD[String] = searcher.getMatchedRDD1(rdd)
+   result.collect.foreach(println)
+   } }
+   case class Searcher(val query: String) {
+   def isMatch(s: String) = {
+   s.contains(query)
+   }
+   def getMatchedRDD1(rdd: RDD[String]) = {
+   rdd.filter(isMatch) 
+   }
+   def getMatchedRDD2(rdd: RDD[String]) = {
+   val q = query
+   rdd.filter(_.contains(q))
+   } }
+   ```
+
+#### 5.1.4.7 RDD依赖关系
+
+1. RDD血缘关系
+   
+2. xx
 
 
 
