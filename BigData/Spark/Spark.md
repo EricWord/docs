@@ -2697,27 +2697,526 @@ val resultRDD: RDD[(String, (Int, Int))] = rdd1.map {
  } }
 ```
 
+#  6. Spark案例实操
+
+![image-20201227092653276](.\images\56.png) 
+
+上面的数据图是从数据文件中截取的一部分内容，表示为电商网站的用户行为数据，主要包含用户的4种行为:搜索、点击、下单、支付。数据规则如下:
+
++ 数据文件中每行数据采用下划线分割数据
++ 每一行数据表示用户的一次行为，这个行为只能是4种行为的一种
++ 如果搜索关键字为null,表示不是搜索数据
++ 如果点击的品类ID和产品ID为-1，表示数据不是点击数据
++ 针对于下单行为，一次可以下单多个商品，所以品类ID和产品ID可以是多个，id之间采用逗号分隔，如果本次不是下单行为，则数据采用Null表示
++ 支付行为和下单行为类似
+
+***详细字段说明***
+
+![image-20201227094527036](.\images\57.png)
+
+![image-20201227094611491](.\images\58.png)
+
+***样例类***
+
+```scala
+//用户访问动作表
+case class UserVisitAction(
+ date: String,//用户点击行为的日期
+ user_id: Long,//用户的 ID
+ session_id: String,//Session 的 ID
+ page_id: Long,//某个页面的 ID
+ action_time: String,//动作的时间点
+ search_keyword: String,//用户搜索的关键词
+ click_category_id: Long,//某一个商品品类的 ID
+ click_product_id: Long,//某一个商品的 ID
+ order_category_ids: String,//一次订单中所有品类的 ID 集合
+ order_product_ids: String,//一次订单中所有商品的 ID 集合
+ pay_category_ids: String,//一次支付中所有品类的 ID 集合
+ pay_product_ids: String,//一次支付中所有商品的 ID 集合
+ city_id: Long
+)//城市 id
+```
+
+## 6.1 需求1：Top10热门品类
+
+![image-20201227094812831](.\images\59.png)
+
+### 6.1.1 需求说明
+
+品类是指产品的分类，大型电商网站品类分多级，本项目中品类只有1级，不同的公司可能对热门的定义不一样。我们按照每个品类的点击、下单、支付的量来统计热门品类。
+
+![image-20201227095045227](.\images\60.png)
+
+![image-20201227095117292](.\images\61.png)
 
 
 
+例如，综合排名 = 点击数 * 20% + 下单数 * 30 % + 支付数 * 50%
+
+本项目需求优化为:先按照点击数排名，靠前的就排名高；如果点击数相同，再比较下单数；下单数相同，就比较支付数
+
+### 6.1.2 实现方案1
+
+#### 6.1.2.1 需求分析
+
+分别统计每个品类点击的次数，下单的次数和支付的次数：
+
+(品类,点击总数) (品类,下单总数) (品类,支付总数)
+
+#### 6.1.2.2 需求实现
+
+```scala
+package net.codeshow.spark.core.req
+
+import org.apache.spark.{SparkConf, SparkContext}
+
+object Spark01_Req_HotCategoryTop10Analysis {
+  def main(args: Array[String]): Unit = {
+    //    todo top10热门品类
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("HotCategoryTop10Analysis")
+    val sc = new SparkContext(sparkConf)
+    //    1.读取原始日志数据
+    val actionRDD = sc.textFile("datas/user_visit_action.txt")
+    //    2.统计品类的点击数量:(品类ID,点击数量)
+    val clickActionRDD = actionRDD.filter(
+      action => {
+        val datas = action.split("_")
+        datas(6) != "-1"
+      }
+    )
+    val clickCountRDD = clickActionRDD.map(
+      action => {
+        val datas = action.split("_")
+        (datas(6), 1)
+      }
+    ).reduceByKey(_ + _)
+
+    //    3.统计品类的下单数量:(品类ID,下单数量)
+    val orderActionRDD = actionRDD.filter(
+      action => {
+        val datas = action.split("_")
+        datas(8) != "null"
+      }
+    )
+
+    val orderCountRDD = orderActionRDD.flatMap(
+      action => {
+        val datas = action.split("_")
+        val cid = datas(8)
+        val cids = cid.split(",")
+        cids.map(id => (id, 1))
+      }
+    ).reduceByKey(_ + _)
+
+    //    4.统计品类的支付数量:(品类ID,支付数量)
+    val payActionRDD = actionRDD.filter(
+      action => {
+        val datas = action.split("_")
+        datas(10) != "null"
+      }
+    )
+
+    val payCountRDD = payActionRDD.flatMap(
+      action => {
+        val datas = action.split("_")
+        val cid = datas(10)
+        val cids = cid.split(",")
+        cids.map(id => (id, 1))
+      }
+    ).reduceByKey(_ + _)
+
+    //    5.将品类进行排序，并且取前10名
+    //点击数量排序，下单数量排序，支付数量排序
+    //    元组排序:先比较第一个，如果第一个相同，再比较第二个，如果第二个相同，再比较第三个，以此类推
+    //    (品类ID,(点击数量,下单数量,支付数量))
+
+    val cogroupRDD = clickCountRDD.cogroup(orderCountRDD, payCountRDD)
+    val analysisRDD = cogroupRDD.mapValues {
+      case (clickIter, orderIter, payIter) => {
+        var clickCnt = 0
+        val iter1 = clickIter.iterator
+        if (iter1.hasNext) {
+          clickCnt = iter1.next()
+        }
+        var orderCnt = 0
+        val iter2 = orderIter.iterator
+        if (iter2.hasNext) {
+          orderCnt = iter2.next()
+        }
+        var payCnt = 0
+        val iter3 = payIter.iterator
+        if (iter3.hasNext) {
+          payCnt = iter3.next()
+        }
+        (clickCnt, orderCnt, payCnt)
+
+      }
+    }
+
+    val resultRDD = analysisRDD.sortBy(_._2, ascending = false).take(10)
+
+    //    6.将结果采集到控制台打印出来
+    resultRDD.foreach(println)
+    sc.stop()
+  }
+}
+
+```
+
+### 6.1.3 实现方案2
+
+#### 6.1.3.1 需求分析
+
+一次性统计每个品类点击的次数、下单的次数和支付的次数
+
+(品类,(点击总数,下单总数,支付总数))
+
+#### 6.1.3.2 需求实现
+
+```scala
+package net.codeshow.spark.core.req
+
+import org.apache.spark.{SparkConf, SparkContext}
+
+object Spark02_Req_HotCategoryTop10Analysis {
+  def main(args: Array[String]): Unit = {
+    //    todo top10热门品类
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("HotCategoryTop10Analysis")
+    val sc = new SparkContext(sparkConf)
+    //    1.读取原始日志数据
+    val actionRDD = sc.textFile("datas/user_visit_action.txt")
+    //    actionRDD重复使用
+    actionRDD.cache()
+    //    2.统计品类的点击数量:(品类ID,点击数量)
+    val clickActionRDD = actionRDD.filter(
+      action => {
+        val datas = action.split("_")
+        datas(6) != "-1"
+      }
+    )
+
+    val clickCountRDD = clickActionRDD.map(
+      action => {
+        val datas = action.split("_")
+        (datas(6), 1)
+      }
+    ).reduceByKey(_ + _)
+
+    //    3.统计品类的下单数量:(品类ID,下单数量)
+    val orderActionRDD = actionRDD.filter(
+      action => {
+        val datas = action.split("_")
+        datas(8) != "null"
+      }
+    )
+
+    val orderCountRDD = orderActionRDD.flatMap(
+      action => {
+        val datas = action.split("_")
+        val cid = datas(8)
+        val cids = cid.split(",")
+        cids.map(id => (id, 1))
+      }
+    ).reduceByKey(_ + _)
+
+    //    4.统计品类的支付数量:(品类ID,支付数量)
+    val payActionRDD = actionRDD.filter(
+      action => {
+        val datas = action.split("_")
+        datas(10) != "null"
+      }
+    )
+
+    val payCountRDD = payActionRDD.flatMap(
+      action => {
+        val datas = action.split("_")
+        val cid = datas(10)
+        val cids = cid.split(",")
+        cids.map(id => (id, 1))
+      }
+    ).reduceByKey(_ + _)
+    //    5.将品类进行排序，并且取前10名
+    //点击数量排序，下单数量排序，支付数量排序
+    //    元组排序:先比较第一个，如果第一个相同，再比较第二个，如果第二个相同，再比较第三个，以此类推
+    //    (品类ID,(点击数量,下单数量,支付数量))
+    var rdd1 = clickCountRDD.map {
+      case (cid, cnt) => {
+        (cid, (cnt, 0, 0))
+      }
+    }
+    var rdd2 = orderCountRDD.map {
+      case (cid, cnt) => {
+        (cid, (0, cnt, 0))
+      }
+    }
+    var rdd3 = payCountRDD.map {
+      case (cid, cnt) => {
+        (cid, (0, 0, cnt))
+      }
+    }
+
+    //    将三个数据源合并在一起，统一进行聚合计算
+    val sourceRDD = rdd1.union(rdd2).union(rdd3)
+    val analysisRDD = sourceRDD.reduceByKey(
+      (t1, t2) => {
+        (t1._1 + t2._1, t1._2 + t2._2, t1._3 + t2._3)
+      }
+    )
+    val resultRDD = analysisRDD.sortBy(_._2, ascending = false).take(10)
+    //    6.将结果采集到控制台打印出来
+    resultRDD.foreach(println)
+    sc.stop()
+  }
+}
+```
+
+### 6.1.4 实现方案3
+
+#### 6.1.4.1 需求分析
+
+使用累加器的方式聚合数据
+
+#### 6.1.4.2 需求实现
+
+```scala
+package net.codeshow.spark.core.req
+
+import org.apache.spark.util.AccumulatorV2
+import org.apache.spark.{SparkConf, SparkContext}
+
+import scala.collection.mutable
+
+object Spark04_Req_HotCategoryTop10Analysis {
+  def main(args: Array[String]): Unit = {
+    //    todo top10热门品类
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("HotCategoryTop10Analysis")
+    val sc = new SparkContext(sparkConf)
+    //    1.读取原始日志数据
+    val actionRDD = sc.textFile("datas/user_visit_action.txt")
+    val acc = new HotCategoryAccumulator
+    sc.register(acc, "hotCategory")
+    //   2.将数据转换结构
+    //    点击的场景:(品类ID,(1,0,0))
+    //    下单的场景:(品类ID,(0,1,0))
+    //    支付的场景:(品类ID,(0,0,1))
+    actionRDD.foreach {
+      action => {
+        val datas = action.split("_")
+        if (datas(6) != "-1") {
+          //          点击的场景
+          acc.add((datas(6), "click"))
+        } else if (datas(8) != "null") {
+          //          下单的场景
+          val ids = datas(8).split(",")
+          ids.foreach(
+            id => {
+              acc.add(id, "order")
+            }
+          )
+        } else if (datas(10) != "null") {
+          //          支付的场景
+          val ids = datas(10).split(",")
+          ids.foreach(
+            id => {
+              acc.add(id, "pay")
+            }
+          )
+        }
+      }
+    }
+    val accVal = acc.value
+    val categories = accVal.values
+    val sort = categories.toList.sortWith(
+      (left, right) => {
+        if (left.clickCnt > right.clickCnt) {
+          true
+        } else if (left.clickCnt == right.clickCnt) {
+          if (left.orderCnt > right.orderCnt) {
+            true
+          } else if (left.orderCnt == right.orderCnt) {
+            left.payCnt > right.payCnt
+          }
+          else {
+            false
+          }
+        }
+        else {
+          false
+        }
+      }
+    )
+    //    5.将结果采集到控制台打印出来
+    sort.take(10).foreach(println)
+    sc.stop()
+  }
+  case class HotCategory(cid: String, var clickCnt: Int, var orderCnt: Int, var payCnt: Int)
+  /*
+  自定义累加器
+  1.继承AccumulatorV2，定义泛型
+  2.重写方法
+   */
+  class HotCategoryAccumulator extends AccumulatorV2[(String, String), mutable.Map[String, HotCategory]] {
+    private val hcMap = mutable.Map[String, HotCategory]()
+    override def isZero: Boolean = {
+      hcMap.isEmpty
+    }
+    override def copy(): AccumulatorV2[(String, String), mutable.Map[String, HotCategory]] = {
+      new HotCategoryAccumulator()
+    }
+    override def reset(): Unit = {
+      hcMap.clear()
+    }
+    override def add(v: (String, String)): Unit = {
+      val cid = v._1
+      val actionType = v._2
+      val category = hcMap.getOrElse(cid, HotCategory(cid, 0, 0, 0))
+      if (actionType == "click") {
+        category.clickCnt += 1
+      } else if (actionType == "order") {
+        category.orderCnt += 1
+      } else if (actionType == "pay") {
+        category.payCnt += 1
+      }
+      hcMap.update(cid, category)
+    }
+    override def merge(other: AccumulatorV2[(String, String), mutable.Map[String, HotCategory]]): Unit = {
+      val map1 = this.hcMap
+      val map2 = other.value
+      map2.foreach {
+        case (cid, hc) => {
+          val category = map1.getOrElse(cid, HotCategory(cid, 0, 0, 0))
+          category.clickCnt += hc.clickCnt
+          category.orderCnt += hc.orderCnt
+          category.payCnt += hc.payCnt
+          map1.update(cid, category)
+        }
+      }
+    }
+    override def value: mutable.Map[String, HotCategory] = hcMap
+  }
+}
+```
+
+## 6.2 需求2：Top10热门品类中每个品类的Top10活跃Session统计
+
+ ### 6.2.1 需求说明
+
+在需求1的基础上，增加每个品类用户session的点击统计
+
+### 6.2.2 需求分析
 
 
 
+### 6.2.3 功能实现
+
+```scala
+package net.codeshow.spark.core.req
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{SparkConf, SparkContext}
+
+object Spark05_Req2_HotCategoryTop10Analysis {
+  def main(args: Array[String]): Unit = {
+    //    todo top10热门品类
+    val sparkConf = new SparkConf().setMaster("local[*]").setAppName("HotCategoryTop10Analysis")
+    val sc = new SparkContext(sparkConf)
+    //    1.读取原始日志数据
+    val actionRDD = sc.textFile("datas/user_visit_action.txt")
+    actionRDD.cache()
+    val top10Ids = top10Category(actionRDD)
+    //1.过滤原始数据，保留点击和前10品类ID
+    val filterActionRDD = actionRDD.filter(
+      action => {
+        val datas = action.split("_")
+        if (datas(6) != "-1") {
+          top10Ids.contains(datas(6))
+        } else {
+          false
+        }
+      }
+    )
+    //    2.根据品类ID和sessionid进行点击量的统计
+    val reduceRDD = filterActionRDD.map(
+      action => {
+        val datas = action.split("_")
+        ((datas(6), datas(2)), 1)
+
+      }
+    ).reduceByKey(_ + _)
+
+    //    3.将统计结果转换结构
+    //    ((品类ID,sessionId),sum) => (品类ID,(sessionId,sum))
+    val mapRDD = reduceRDD.map {
+      case ((cid, sid), sum) => {
+        (cid, (sid, sum))
+      }
+    }
+    //    4.相同的品类进行分组
+    val groupRDD = mapRDD.groupByKey()
+
+    //    5.将分组后的数据进行点击量的排序，取前10名
+    val resultRDD = groupRDD.mapValues(
+      iter => {
+        iter.toList.sortBy(_._2)(Ordering.Int.reverse).take(10)
+      }
+    )
+
+    resultRDD.collect().foreach(println)
+
+    sc.stop()
+  }
+
+  def top10Category(actionRDD: RDD[String]) = {
+    val flatRDD = actionRDD.flatMap {
+      action => {
+        val datas = action.split("_")
+        if (datas(6) != "-1") {
+          //          点击的场景
+          List((datas(6), (1, 0, 0)))
+        } else if (datas(8) != "null") {
+          //          下单的场景
+          val ids = datas(8).split(",")
+          ids.map(id => (id, (0, 1, 0)))
+        } else if (datas(10) != "null") {
+          //          支付的场景
+          val ids = datas(10).split(",")
+          ids.map(id => (id, (0, 0, 1)))
+        } else {
+          Nil
+        }
+      }
+    }
+    val analysisRDD = flatRDD.reduceByKey(
+      (t1, t2) => {
+        (t1._1 + t2._1, t1._2 + t2._2, t1._3 + t2._3)
+      }
+    )
+    analysisRDD.sortBy(_._2, ascending = false).take(10).map(_._1)
+  }
+}
+```
+
+## 6.3 需求3：页面单跳转换率统计
+
+### 6.3.1 需求说明
+
+1. 页面单跳转化率
+   计算页面单跳转化率，什么是页面单跳转化率，比如一个用户在一次Session过程中访问的页面路径3,5,7,9,10,21,那么页面3跳到页面5叫一次单跳,7-9也叫一次单跳，那么单跳转化率就是要统计页面点击的概率。
+   比如:计算3-5的单跳转化率，先获取符合条件的Session对于页面3的访问次数(PV)为A,然后获取符合条件的Session中访问了页面3又紧接着访问了页面5的次数为B,那么B/A就是3-5的页面单跳转化率
+   ![image-20201227174556750](.\images\62.png)
+
+   ​	
+
+2. 统计页面单跳转化率意义
+        产品经理和运营总监，可以根据这个指标去尝试分析整个网站、产品、各个页面的表现怎么样，是不是需要去优化产品的布局，吸引用户最终进入最后的支付页面。
+   	数据分析师可以根据此数据做更深一步的计算和分析
+   	企业管理层可以看到整个公司的网站，各个页面之间的跳转的表现如何，可以适当地调整公司的经营战略。
 
 
 
+### 6.3.2  需求分析
 
-
-
-
-
-
-
-
-
-
-
-
+### 6.3.3 功能实现
 
 
 
