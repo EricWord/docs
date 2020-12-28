@@ -118,17 +118,74 @@ Standalone集群有2个重要组成部分，分别是:
 
 ![image-20201228152428266](./images/66.png)
 
-在Standalone Cluster模式下，任务提交后，Master会找到一个Worker启动Driver。Driver启动后向Master注册应用程序，Master根据submit脚本的资源需求找到内部资源至少可以启动一个Executor的所有Worker,然后在这些Worker之间分配Executor，Worker上的Executor启动后会向Driver反向注册，所有的
+在Standalone Cluster模式下，任务提交后，Master会找到一个Worker启动Driver。Driver启动后向Master注册应用程序，Master根据submit脚本的资源需求找到内部资源至少可以启动一个Executor的所有Worker,然后在这些Worker之间分配Executor，Worker上的Executor启动后会向Driver反向注册，所有的Executor注册完成后，Driver开始执行main函数，之后执行到Action算子时，开始划分Stage，每个Stage生成对应的taskSet，之后将Task分发到各个Executor上执行
+
+### 2.2.2. Standalone Client模式
+
+![image-20201228152955969](./images/67.png)
+
+在Standalone Client模式下，Driver在任务提交的本地机器上运行。Driver启动后向Master注册应用程序，Master根据submit脚本的资源需求找到内部资源至少可以启动一个Executor的所有Worker，然后在这些Worker之间分配Executor，Worker上的Executor启动后会向Driver反向注册，所有的Executor注册完成后，Driver开始执行main函数，之后执行到Action算子时，开始划分Stage，每个Stage生成对应的TaskSet，之后将Task分发到各个Executor上执行。
 
 
 
+# 3. Spark通讯架构
 
+## 3.1 Spark通信架构概述
 
+Spark中通信架构的发展:
 
++ Spark早起版本中采用Akka作为内部通信组件
++ Spark1.3引入Netty通信框架，为了解决Shuffle的大数据传输问题使用
++ Spark1.6中Akka和Netty可以配置使用。Netty完全实现了Akka在Spark中的功能
++ Spark2系列中，Spark抛弃Akka，使用Netty
 
+Spark2.x版本使用Netty通讯框架作为内部通讯组件。Spark基于Netty新的RPC框架借鉴了Akka中的设计，它是Actor模型，如下图所示:
 
+![image-20201228153932019](./images/68.png)
 
+Spark通讯框架中各个组件(Client/Master/Worker)可以认为是一个个独立的实体，各个实体之间通过消息来进行通信。具体各个组件之间的关系图如下:
 
+![image-20201228154126903](./images/69.png)
+
+Endpoint(Client/Master/Worker)有1个InBox和N个OutBox(N>=1,N取决于当前Endpoint与多少其他的Endpoint进行通信，一个与其通讯的其他Endpoint对应一个OutBox),Endpoint接收到的消息被写入InBox,发送出去的消息写入OutBox被发送到其他Endpoint的InBox中。
+
+***Spark通信终端***
+
+***Driver:***
+
+```scala
+class DriverEndpoint extends IsolatedRpcEndpoint
+```
+
+***Executor:***
+
+```scala
+class CoarseGrainedExecutorBackend extends IsolatedRpcEndpoint
+```
+
+## 3.2 Spark通讯架构解析
+
+Spark通信架构如下图所示:
+
+![image-20201228154708088](./images/70.png)
+
++ RpcEndpoint:RPC通信终端。Spark针对每个节点(Client/Master/Worker)都称之为一个RPC终端，且都实现RpcEndpoint接口，内部根据不同端点的需求，设计不同的消息和不同的业务处理，如果需要发送(询问)则调用Dispatcher。在Spark中，所有的终端都存在生命周期:
+  + Constructor
+  + onStart
+  + receive*
+  + onStop
++ RpcEnv:RPC上下文环境，每个RPC终端运行时依赖的上下文环境称为RpcEnv,在当前Spark版本中使用的NettyRpcEnv
++ Dispatcher:消息调度(分发)器，针对于RPC终端需要发送远程消息或者从远程RPC接收到的消息，分发至对应的指令收件箱(发件箱)。如果指令接收方是自己则存入收件箱，如果指令接收方不是自己，则放入发件箱。
++ Inbox:指令消息收件箱。一个本地RpcEndpoint对应一个收件箱，Dispatcher在每次向Inbox存入消息时，都将对应EndpointData加入内部ReceiveQueue中，另外Dispatcher创建时会启动一个单独线程进行轮询ReceiverQueue,进行收件箱消息消费
++ RpcEndpointRef:RpcEndpointRef是对远程RpcEndpoint的一个引用。当我们需要向一个具体的RpcEndpoint发送消息时，一般我们需要获取到该RpcEndpoint的引用，然后通过该应用发送消息
++ OutBox:指令消息发件箱。对于当前RpcEndpoint来说，一个目标RpcEndpoint对应一个发件箱，如果向多个目标RpcEndpoint发送消息，则有多个OutBox。当消息放入Outbox后，紧接着通过TransportClient将消息发送出去。消息放入发件箱以及发送过程是在同一个线程中进行。
++ RpcAddress:表示远程的RpcEndpointRef的地址，Host+Port
++ TransportClient:Netty通信客户端，一个OutBox对应一个TransportClient，TransportClient不断轮询OutBox,根据OutBox消息的receiver信息，请求对应的远程TransportServer
++ TransportServer：Netty通信服务端，一个RpcEndpoint对应一个TranportServer，接受远程消息后调用Dispatcher分发消息至对应收发件箱
+
+# 4.Spark任务调度机制
+
+在生产环境下，Spark集群的部署方式一般为
 
 
 
