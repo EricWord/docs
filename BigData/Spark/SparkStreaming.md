@@ -66,3 +66,74 @@ SparkStreaming 是一个准实时(秒、分钟为单位)、微批次的数据处
 
 ​		通过属性“spark.streaming.backpressure.enabled”来控制是否启用 backpressure 机制，默认值false，即不启用。
 
+# 2. **Dstream** **入门**
+
+## 2.1  **WordCount** **案例实操**
+
+需求：使用 netcat 工具向 9999 端口不断的发送数据，通过 SparkStreaming 读取端口数据并统计不同单词出现的次数
+
+1. 添加依赖
+
+   ```xml
+   <dependency>
+    <groupId>org.apache.spark</groupId>
+    <artifactId>spark-streaming_2.12</artifactId>
+    <version>3.0.0</version>
+   </dependency>
+   ```
+
+2. 编写代码
+
+   ```scala
+   package net.codeshow.spark.streaming
+   
+   object SparkStreaming01_WordCount {
+     def main(args: Array[String]): Unit = {
+       import org.apache.spark.SparkConf
+       import org.apache.spark.streaming.{Seconds, StreamingContext}
+   
+       //    TODO 创建环境对象
+       val sparkConf = new SparkConf().setMaster("local[*]").setAppName("SparkStreaming")
+       //    第一个参数表示环境配置
+       //    第二个参数表示批量处理的周期(采集周期)
+       val ssc = new StreamingContext(sparkConf, Seconds(3))
+   
+       //    TODO 逻辑处理
+       //    获取端口数据
+       val lines = ssc.socketTextStream("localhost", 9999)
+       val words = lines.flatMap(_.split(" "))
+       val wordToOne = words.map((_, 1))
+       val wordToCount = wordToOne.reduceByKey(_ + _)
+       wordToCount.print()
+   
+       //由于SparkStreaming是一个长期执行的任务，所以不能关闭
+       //    如果main方法执行完毕，应用程序也会自动结束，所以不能让main方法执行完毕
+       //    ssc.stop()
+       //    1.启动采集器
+       ssc.start()
+       //    2.等待采集器关闭
+       ssc.awaitTermination()
+     }
+   }
+   ```
+
+3. 启动程序并通过 netcat 发送数据
+
+   ```shell
+   nc -lk 9999
+   hello spark
+   ```
+
+## 2.2 **WordCount** **解析**
+
+​		Discretized Stream 是 Spark Streaming 的基础抽象，代表持续性的数据流和经过各种 Spark 原语操作后的结果数据流。在内部实现上，DStream 是一系列连续的 RDD 来表示。每个 RDD 含有一段时间间隔内的数据。
+
+![image-20210101113626755](.\images\119.png)
+
+对数据的操作也是按照 RDD 为单位来进行的
+
+![image-20210101113704061](.\images\120.png)
+
+计算过程由 Spark Engine 来完成
+
+![image-20210101113749516](.\images\121.png)
