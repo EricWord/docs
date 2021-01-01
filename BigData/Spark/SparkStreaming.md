@@ -552,5 +552,233 @@ SparkStreaming 是一个准实时(秒、分钟为单位)、微批次的数据处
    atguigu
    ```
 
-   
+# 4. **DStream** **转换**
+
+​		DStream 上的操作与 RDD 的类似，分为 Transformations（转换）和 Output Operations（输出）两种，此外转换操作中还有一些比较特殊的原语，如：updateStateByKey()、transform()以及各种 Window 相关的原语。
+
+## 4.1 **无状态转化操作**
+
+​		无状态转化操作就是把简单的 RDD 转化操作应用到每个批次上，也就是转化 DStream 中的每一个 RDD。部分无状态转化操作列在了下表中。注意，针对键值对的 DStream 转化操作(比如reduceByKey())要添加 import StreamingContext._才能在 Scala 中使用。
+
+![image-20210101181830675](.\images\122.png)
+
+​		需要记住的是，尽管这些函数看起来像作用在整个流上一样，但事实上每个 DStream 在内部是由许多 RDD（批次）组成，且无状态转化操作是分别应用到每个 RDD 上的。
+
+​		例如：reduceByKey()会归约每个时间区间中的数据，但不会归约不同区间之间的数据。
+
+### 4.1.1 **Transform**
+
+​		Transform 允许 DStream 上执行任意的 RDD-to-RDD 函数。即使这些函数并没有在 DStream的 API 中暴露出来，通过该函数可以方便的扩展 Spark API。该函数每一批次调度一次。其实也就是对 DStream 中的 RDD 应用转换。
+
+```scala
+object Transform {
+ def main(args: Array[String]): Unit = {
+ //创建 SparkConf
+     val sparkConf: SparkConf = new 
+SparkConf().setMaster("local[*]").setAppName("WordCount")
+ //创建 StreamingContext
+ val ssc = new StreamingContext(sparkConf, Seconds(3))
+ //创建 DStream
+ val lineDStream: ReceiverInputDStream[String] = ssc.socketTextStream("linux1", 
+9999)
+ //转换为 RDD 操作
+ val wordAndCountDStream: DStream[(String, Int)] = lineDStream.transform(rdd => 
+{
+ val words: RDD[String] = rdd.flatMap(_.split(" "))
+ val wordAndOne: RDD[(String, Int)] = words.map((_, 1))
+ val value: RDD[(String, Int)] = wordAndOne.reduceByKey(_ + _)
+ value
+ })
+ //打印
+ wordAndCountDStream.print
+ //启动
+ ssc.start()
+ ssc.awaitTermination()
+ } }
+```
+
+### 4.1.2  **join**
+
+​		两个流之间的 join 需要两个流的批次大小一致，这样才能做到同时触发计算。计算过程就是对当前批次的两个流中各自的 RDD 进行 join，与两个 RDD 的 join 效果相同。
+
+```scala
+import org.apache.spark.SparkConf
+import org.apache.spark.streaming.{Seconds, StreamingContext}
+import org.apache.spark.streaming.dstream.{DStream, ReceiverInputDStream}
+object JoinTest {
+ def main(args: Array[String]): Unit = {
+ //1.创建 SparkConf
+ val sparkConf: SparkConf = new 
+SparkConf().setMaster("local[*]").setAppName("JoinTest")
+ //2.创建 StreamingContext
+ val ssc = new StreamingContext(sparkConf, Seconds(5))
+ //3.从端口获取数据创建流
+ val lineDStream1: ReceiverInputDStream[String] = 
+ssc.socketTextStream("linux1", 9999)
+ val lineDStream2: ReceiverInputDStream[String] = 
+ssc.socketTextStream("linux2", 8888)
+ //4.将两个流转换为 KV 类型
+ val wordToOneDStream: DStream[(String, Int)] = lineDStream1.flatMap(_.split("
+ ")).map((_, 1))
+ val wordToADStream: DStream[(String, String)] = lineDStream2.flatMap(_.split(" 
+")).map((_, "a"))
+ //5.流的 JOIN
+ val joinDStream: DStream[(String, (Int, String))] = 
+wordToOneDStream.join(wordToADStream)
+ //6.打印
+ joinDStream.print()
+ //7.启动任务
+ ssc.start()
+ ssc.awaitTermination()
+ } }
+```
+
+## 4.2 **有状态转化操作**
+
+### 4.2.1  **UpdateStateByKey**
+
+​		UpdateStateByKey 原语用于记录历史记录，有时，我们需要在 DStream 中跨批次维护状态(例如流计算中累加 wordcount)。针对这种情况，updateStateByKey()为我们提供了对一个状态变量的访问，用于键值对形式的 DStream。给定一个由(键，事件)对构成的 DStream，并传递一个指定如何根据新的事件更新每个键对应状态的函数，它可以构建出一个新的 DStream，其内部数据为(键，状态) 对。
+
+​		updateStateByKey() 的结果会是一个新的 DStream，其内部的 RDD 序列由每个时间区间对应的(键，状态)对组成。
+
+​		updateStateByKey 操作使得我们可以在用新信息进行更新时保持任意的状态。为使用这个功能，需要做下面两步：
+
+1. 定义状态，状态可以是一个任意的数据类型。
+
+2. 定义状态更新函数，用此函数阐明如何使用之前的状态和来自输入流的新值对状态进行更新。
+
+   使用 updateStateByKey 需要对检查点目录进行配置，会使用检查点来保存状态。
+
+更新版的 wordcount
+
++ 编写代码
+
+  ```scala
+  object WorldCount {
+   def main(args: Array[String]) {
+   // 定义更新状态方法，参数 values 为当前批次单词频度，state 为以往批次单词频度
+   val updateFunc = (values: Seq[Int], state: Option[Int]) => {
+   val currentCount = values.foldLeft(0)(_ + _)
+       val previousCount = state.getOrElse(0)
+   Some(currentCount + previousCount)
+   }
+   val conf = new 
+  SparkConf().setMaster("local[*]").setAppName("NetworkWordCount")
+   val ssc = new StreamingContext(conf, Seconds(3))
+   ssc.checkpoint("./ck")
+   // Create a DStream that will connect to hostname:port, like hadoop102:9999
+   val lines = ssc.socketTextStream("linux1", 9999)
+   // Split each line into words
+   val words = lines.flatMap(_.split(" "))
+   //import org.apache.spark.streaming.StreamingContext._ // not necessary since 
+  Spark 1.3
+   // Count each word in each batch
+   val pairs = words.map(word => (word, 1))
+   // 使用 updateStateByKey 来更新状态，统计从运行开始以来单词总的次数
+   val stateDstream = pairs.updateStateByKey[Int](updateFunc)
+   stateDstream.print()
+   ssc.start() // Start the computation
+   ssc.awaitTermination() // Wait for the computation to terminate
+   //ssc.stop()
+   } }
+  ```
+
++ 启动程序并向 9999 端口发送数据
+
+  ```shell
+  nc -lk 9999
+  Hello World
+  Hello Scala
+  ```
+
++ 结果展示
+
+  ```shell
+  -------------------------------------------
+  Time: 1504685175000 ms
+  -------------------------------------------
+  -------------------------------------------
+  Time: 1504685181000 ms
+  -------------------------------------------
+  (shi,1)
+  (shui,1)
+  (ni,1)
+  -------------------------------------------
+  Time: 1504685187000 ms
+  -------------------------------------------
+  (shi,1)
+  (ma,1)
+  (hao,1)
+  (shui,1)
+  ```
+
+  ### 4.2.2 **WindowOperations**
+
+  ​		Window Operations 可以设置窗口的大小和滑动窗口的间隔来动态的获取当前 Steaming 的允许状态。所有基于窗口的操作都需要两个参数，分别为窗口时长以及滑动步长。
+
+  ➢ 窗口时长：计算内容的时间范围；
+
+  ➢ 滑动步长：隔多久触发一次计算。
+
+  注意：这两者都必须为采集周期大小的整数倍。
+
+  WordCount 第三版：3 秒一个批次，窗口 12 秒，滑步 6 秒。
+
+  ```scala
+  object WorldCount {
+   def main(args: Array[String]) {
+   val conf = new 
+  SparkConf().setMaster("local[2]").setAppName("NetworkWordCount")
+   val ssc = new StreamingContext(conf, Seconds(3))
+   ssc.checkpoint("./ck")
+   // Create a DStream that will connect to hostname:port, like localhost:9999
+   val lines = ssc.socketTextStream("linux1", 9999)
+   // Split each line into words
+   val words = lines.flatMap(_.split(" "))
+  // Count each word in each batch
+   val pairs = words.map(word => (word, 1))
+   val wordCounts = pairs.reduceByKeyAndWindow((a:Int,b:Int) => (a + 
+  b),Seconds(12), Seconds(6))
+   // Print the first ten elements of each RDD generated in this DStream to the 
+  console
+   wordCounts.print()
+   ssc.start() // Start the computation
+   ssc.awaitTermination() // Wait for the computation to terminate
+   } }
+  ```
+
+  关于 Window 的操作还有如下方法：
+
+  （1）window(windowLength, slideInterval): 基于对源 DStream 窗化的批次进行计算返回一个新的 Dstream； 
+
+  （2）countByWindow(windowLength, slideInterval): 返回一个滑动窗口计数流中的元素个数；
+
+  （3）reduceByWindow(func, windowLength, slideInterval): 通过使用自定义函数整合滑动区间流元素来创建一个新的单元素流；
+
+  （4）reduceByKeyAndWindow(func, windowLength, slideInterval, [numTasks]): 当在一个(K,V)对的 DStream 上调用此函数，会返回一个新(K,V)对的 DStream，此处通过对滑动窗口中批次数据使用 reduce 函数来整合每个 key 的 value 值。
+
+  （5）reduceByKeyAndWindow(func, invFunc, windowLength, slideInterval, [numTasks]): 这个函数是上述函数的变化版本，每个窗口的 reduce 值都是通过用前一个窗的 reduce 值来递增计算。
+
+  通过 reduce 进入到滑动窗口数据并”反向 reduce”离开窗口的旧数据来实现这个操作。一个例子是随着窗口滑动对 keys 的“加”“减”计数。通过前边介绍可以想到，这个函数只适用于”可逆的 reduce 函数”，也就是这些 reduce 函数有相应的”反 reduce”函数(以参数 invFunc 形式传入)。如前述函数，reduce 任务的数量通过可选参数来配置
+
+  ![image-20210101182941007](.\images\123.png)
+
+```scala
+val ipDStream = accessLogsDStream.map(logEntry => (logEntry.getIpAddress(), 1))
+val ipCountDStream = ipDStream.reduceByKeyAndWindow(
+ {(x, y) => x + y},
+ {(x, y) => x - y},
+ Seconds(30),
+ Seconds(10))
+ //加上新进入窗口的批次中的元素 //移除离开窗口的老批次中的元素 //窗口时长// 滑动步长
+```
+
+countByWindow()和 countByValueAndWindow()作为对数据进行计数操作的简写。countByWindow()返回一个表示每个窗口中元素个数的 DStream，而 countByValueAndWindow()返回的 DStream 则包含窗口中每个值的个数。
+
+```scala
+val ipDStream = accessLogsDStream.map{entry => entry.getIpAddress()}
+val ipAddressRequestCount = ipDStream.countByValueAndWindow(Seconds(30), 
+Seconds(10)) 
+val requestCount = accessLogsDStream.countByWindow(Seconds(30), Seconds(10))
+```
 
