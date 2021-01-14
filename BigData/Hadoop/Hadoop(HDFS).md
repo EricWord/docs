@@ -1088,3 +1088,1118 @@ HDFS写数据流程如下图所示
 
    （1）查看当前模式
 
+   ```bash
+   hdfs dfsadmin -safemode get
+   Safe mode is OFF
+   ```
+
+   （2）先进入安全模式
+
+   ```bash
+   bin/hdfs dfsadmin -safemode enter
+   ```
+
+   （3）创建并执行下面的脚本
+
+   在/opt/module/hadoop-2.7.2路径上，编辑一个脚本safemode.sh
+
+   ```bash
+   touch safemode.sh
+   vim safemode.sh
+   
+   #!/bin/bash
+   hdfs dfsadmin -safemode wait
+   hdfs dfs -put /opt/module/hadoop-2.7.2/README.txt /
+   
+   chmod 777 safemode.sh
+   
+   ./safemode.sh
+   ```
+
+   （4）再打开一个窗口，执行
+
+   ```bash
+   bin/hdfs dfsadmin -safemode leave
+   ```
+
+   （5）观察
+
+   ​	（a）再观察上一个窗口
+
+   ​    	   Safe mode is OFF
+
+   ​	（b）HDFS集群上已经有上传的数据了。
+
+## 5.6 NameNode多目录配置
+
+1. NameNode的本地目录可以配置成多个，且每个目录存放内容相同，增加了可靠性
+
+2. 具体配置如下
+
+   （1）在hdfs-site.xml文件中增加如下内容
+
+   ```xml
+   <property>
+       <name>dfs.namenode.name.dir</name>
+   <value>file:///${hadoop.tmp.dir}/dfs/name1,file:///${hadoop.tmp.dir}/dfs/name2</value>
+   </property>
+   ```
+
+   （2）停止集群，删除data和logs中所有数据
+
+   ```bash
+   [atguigu@hadoop102 hadoop-2.7.2]$ rm -rf data/ logs/
+   [atguigu@hadoop103 hadoop-2.7.2]$ rm -rf data/ logs/
+   [atguigu@hadoop104 hadoop-2.7.2]$ rm -rf data/ logs/
+   ```
+
+   （3）格式化集群并启动。
+
+   ```bash
+   [atguigu@hadoop102 hadoop-2.7.2]$ bin/hdfs namenode –format
+   [atguigu@hadoop102 hadoop-2.7.2]$ sbin/start-dfs.sh
+   ```
+
+   （4）查看结果
+
+   ```bash
+   [atguigu@hadoop102 dfs]$ ll
+   总用量 12
+   drwx------. 3 atguigu atguigu 4096 12月 11 08:03 data
+   drwxrwxr-x. 3 atguigu atguigu 4096 12月 11 08:03 name1
+   drwxrwxr-x. 3 atguigu atguigu 4096 12月 11 08:03 name2
+   ```
+
+# 6. DataNode（面试开发重点）
+
+## 6.1 DataNode工作机制
+
+![image-20210113194751895](./images/66.png)
+
+1）一个数据块在DataNode上以文件形式存储在磁盘上，包括两个文件，一个是数据本身，一个是元数据包括数据块的长度，块数据的校验和，以及时间戳。
+
+2）DataNode启动后向NameNode注册，通过后，周期性（1小时）的向NameNode上报所有的块信息。
+
+3）心跳是每3秒一次，心跳返回结果带有NameNode给该DataNode的命令如复制块数据到另一台机器，或删除某个数据块。如果超过10分钟没有收到某个DataNode的心跳，则认为该节点不可用。
+
+4）集群运行中可以安全加入和退出一些机器。
+
+## 6.2 数据完整性
+
+​		思考：如果电脑磁盘里面存储的数据是控制高铁信号灯的红灯信号（1）和绿灯信号（0），但是存储该数据的磁盘坏了，一直显示是绿灯，是否很危险？同理DataNode节点上的数据损坏了，却没有发现，是否也很危险，那么如何解决呢？
+
+如下是DataNode节点保证数据完整性的方法
+
+1）当DataNode读取Block的时候，它会计算CheckSum。
+
+2）如果计算后的CheckSum，与Block创建时值不一样，说明Block已经损坏。
+
+3）Client读取其他DataNode上的Block。
+
+4）DataNode在其文件创建后周期验证CheckSum,如下图所示
+
+![image-20210114090916794](./images/67.png)
+
+## 6.3 掉线时限参数设置
+
+![image-20210114091047795](./images/68.png)
+
+需要注意的是hdfs-site.xml 配置文件中的heartbeat.recheck.interval的单位为毫秒，dfs.heartbeat.interval的单位为秒
+
+```xml
+<property>
+    <name>dfs.namenode.heartbeat.recheck-interval</name>
+    <value>300000</value>
+</property>
+<property>
+    <name>dfs.heartbeat.interval</name>
+    <value>3</value>
+</property>
+```
+
+## 6.4 服役新数据节点
+
+1. 需求
+
+   随着公司业务的增长，数据量越来越大，原有的数据节点的容量已经不能满足存储数据的需求，需要在原有集群基础上动态添加新的数据节点
+
+2. 环境准备
+
+   （1）在hadoop104主机上再克隆一台hadoop105主机
+
+   ​	（2）修改IP地址和主机名称
+
+   ​	（3）删除原来HDFS文件系统留存的文件（/opt/module/hadoop-2.7.2/data和log
+
+   ​	（4）source一下配置文件
+
+   ```bash
+   source /etc/profile
+   ```
+
+3. 服役新节点具体步骤
+
+   （1）直接启动DataNode，即可关联到集群
+
+   ```bash
+   [atguigu@hadoop105 hadoop-2.7.2]$ sbin/hadoop-daemon.sh start datanode
+   [atguigu@hadoop105 hadoop-2.7.2]$ sbin/yarn-daemon.sh start nodemanager
+   ```
+
+   ![image-20210114091416972](./images/69.png)
+
+   （2）在hadoop105上上传文件
+
+   ```bash
+   [atguigu@hadoop105 hadoop-2.7.2]$ hadoop fs -put /opt/module/hadoop-2.7.2/LICENSE.txt /
+   ```
+
+   （3）如果数据不均衡，可以用命令实现集群的再平衡
+
+   ```bash
+   [atguigu@hadoop102 sbin]$ ./start-balancer.sh
+   starting balancer, logging to /opt/module/hadoop-2.7.2/logs/hadoop-atguigu-balancer-hadoop102.out
+   Time Stamp               Iteration#  Bytes Already Moved  Bytes Left To Move  Bytes Being Moved
+   ```
+
+   ## 6.5 退役旧数据节点
+
+   ### 6.5.1 添加白名单
+
+   添加到白名单的主机节点，都允许访问NameNode，不在白名单的主机节点，都会被退出。
+
+   配置白名单的具体步骤如下：
+
+   （1）在NameNode的/opt/module/hadoop-2.7.2/etc/hadoop目录下创建dfs.hosts文件
+
+   ```bash
+   [atguigu@hadoop102 hadoop]$ pwd
+   /opt/module/hadoop-2.7.2/etc/hadoop
+   [atguigu@hadoop102 hadoop]$ touch dfs.hosts
+   [atguigu@hadoop102 hadoop]$ vi dfs.hosts
+   ```
+
+   ​		添加如下主机名称（不添加hadoop105）
+
+   ```bash
+   hadoop102
+   hadoop103
+   hadoop104
+   ```
+
+   （2）在NameNode的hdfs-site.xml配置文件中增加dfs.hosts属性
+
+   ```xml
+   <property>
+   <name>dfs.hosts</name>
+   <value>/opt/module/hadoop-2.7.2/etc/hadoop/dfs.hosts</value>
+   </property>
+   ```
+
+   （3）配置文件分发
+
+   ```bash
+   xsync hdfs-site.xml
+   ```
+
+   （4）刷新NameNode
+
+   ```bash
+   hdfs dfsadmin -refreshNodes
+   ```
+
+   （5）更新ResourceManager节点
+
+   ```bash
+   yarn rmadmin -refreshNodes
+   17/06/24 14:17:11 INFO client.RMProxy: Connecting to ResourceManager at hadoop103/192.168.1.103:8033
+   ```
+
+   （6）在web浏览器上查看
+
+   ![image-20210114092044766](./images/70.png)
+
+   （7）如果数据不均衡，可以用命令实现集群的再平衡
+
+   ```bash
+   [atguigu@hadoop102 sbin]$ ./start-balancer.sh
+   starting balancer, logging to /opt/module/hadoop-2.7.2/logs/hadoop-atguigu-balancer-hadoop102.out
+   Time Stamp               Iteration#  Bytes Already Moved  Bytes Left To Move  Bytes Being Moved
+   ```
+
+### 6.5.2 黑名单退役
+
+在黑名单上面的主机都会被强制退出
+
+1. 在NameNode的/opt/module/hadoop-2.7.2/etc/hadoop目录下创建dfs.hosts.exclude文件
+
+   ```bash
+   [atguigu@hadoop102 hadoop]$ pwd
+   /opt/module/hadoop-2.7.2/etc/hadoop
+   [atguigu@hadoop102 hadoop]$ touch dfs.hosts.exclude
+   [atguigu@hadoop102 hadoop]$ vi dfs.hosts.exclude
+   ```
+
+   添加如下主机名称（要退役的节点）
+
+   ```bash
+   hadoop105
+   ```
+
+   
+
+2. 在NameNode的hdfs-site.xml配置文件中增加dfs.hosts.exclude属性
+
+   ```xml
+   <property>
+   <name>dfs.hosts.exclude</name>
+         <value>/opt/module/hadoop-2.7.2/etc/hadoop/dfs.hosts.exclude</value>
+   </property>
+   ```
+
+   
+
+3. 刷新NameNode、刷新ResourceManager
+
+   ```bash
+   [atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfsadmin -refreshNodes
+   Refresh nodes successful
+   
+   [atguigu@hadoop102 hadoop-2.7.2]$ yarn rmadmin -refreshNodes
+   17/06/24 14:55:56 INFO client.RMProxy: Connecting to ResourceManager at hadoop103/192.168.1.103:8033
+   ```
+
+   
+
+4. 检查Web浏览器，退役节点的状态为decommission in progress（退役中），说明数据节点正在复制块到其他节点
+
+   ![image-20210114092726946](./images/71.png)
+
+5. 等待退役节点状态为decommissioned（所有块已经复制完成），停止该节点及节点资源管理器。注意：如果副本数是3，服役的节点小于等于3，是不能退役成功的，需要修改副本数后才能退役
+
+   ![image-20210114092752665](./images/72.png)
+
+   ```bash
+   [atguigu@hadoop105 hadoop-2.7.2]$ sbin/hadoop-daemon.sh stop datanode
+   ```
+
+   stopping datanode
+
+   ```bash
+   [atguigu@hadoop105 hadoop-2.7.2]$ sbin/yarn-daemon.sh stop nodemanager
+   ```
+
+   
+
+6. 如果数据不均衡，可以用命令实现集群的再平衡
+
+   ```bash
+   [atguigu@hadoop102 hadoop-2.7.2]$ sbin/start-balancer.sh 
+   starting balancer, logging to /opt/module/hadoop-2.7.2/logs/hadoop-atguigu-balancer-hadoop102.out
+   Time Stamp               Iteration#  Bytes Already Moved  Bytes Left To Move  Bytes Being Moved
+   ```
+
+​          注意：不允许白名单和黑名单中同时出现同一个主机名称。
+
+## 6.6 Datanode多目录配置
+
+1. DataNode也可以配置成多个目录，每个目录存储的数据不一样。即：数据不是副本
+
+2. 具体配置如下
+
+   hdfs-site.xml
+
+   ```xml
+   <property>
+           <name>dfs.datanode.data.dir</name>
+   <value>file:///${hadoop.tmp.dir}/dfs/data1,file:///${hadoop.tmp.dir}/dfs/data2</value>
+   </property>
+   ```
+
+# 7. HDFS 2.X新特性
+
+## 7.1 集群间数据拷贝
+
+1. scp实现两个远程主机之间的文件复制
+
+   ​    scp -r hello.txt [root@hadoop103:/user/atguigu/hello.txt](mailto:root@hadoop103:/user/atguigu/hello.txt)		// 推 push
+
+   ​	scp -r [root@hadoop103:/user/atguigu/hello.txt  hello.txt](mailto:root@hadoop103:/user/atguigu/hello.txt  hello.txt)		// 拉 pull
+
+   ​	scp -r [root@hadoop103:/user/atguigu/hello.txt](mailto:root@hadoop103:/user/atguigu/hello.txt) root@hadoop104:/user/atguigu  //是通过本地主机中转实现两个远程主机的文件复制；如果在两个远程主机之间ssh没有配置的情况下可以使用该方式。
+
+2. 采用distcp命令实现两个Hadoop集群之间的递归数据复制
+
+   ```bash
+   [atguigu@hadoop102 hadoop-2.7.2]$  bin/hadoop distcp
+   hdfs://haoop102:9000/user/atguigu/hello.txt hdfs://hadoop103:9000/user/atguigu/hello.txt
+   ```
+
+## 7.2 小文件存档
+
+![image-20210114094459057](./images/73.png)
+
+   
+
+案例实操
+
+（1）需要启动YARN进程
+
+```bash
+start-yarn.sh
+```
+
+（2）归档文件
+
+​		把/user/atguigu/input目录里面的所有文件归档成一个叫input.har的归档文件，并把归档后文件存储到/user/atguigu/output路径下。
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ bin/hadoop archive -archiveName input.har –p  /user/atguigu/input   /user/atguigu/output
+```
+
+（3）查看归档
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hadoop fs -lsr /user/atguigu/output/input.har
+[atguigu@hadoop102 hadoop-2.7.2]$ hadoop fs -lsr har:///user/atguigu/output/input.har
+```
+
+（4）解归档文件
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hadoop fs -cp har:/// user/atguigu/output/input.har/*    /user/atguigu
+```
+
+## 7.3 回收站
+
+开启回收站功能，可以将删除的文件在不超时的情况下，恢复原数据，起到防止误删除、备份等作用。
+
+1. 回收站参数设置及工作机制
+
+   ![image-20210114094931001](./images/74.png)
+
+2. 启用回收站
+
+   修改core-site.xml，配置垃圾回收时间为1分钟。
+
+   ```xml
+   <property>
+      <name>fs.trash.interval</name>
+   <value>1</value>
+   </property>
+   ```
+
+3. 查看回收站
+
+   回收站在集群中的路径：/user/atguigu/.Trash/….
+
+4. 修改访问垃圾回收站用户名称
+
+   进入垃圾回收站用户名称，默认是dr.who，修改为atguigu用户
+
+   [core-site.xml]
+
+   ```xml
+   <property>
+     <name>hadoop.http.staticuser.user</name>
+     <value>atguigu</value>
+   </property>
+   ```
+
+5. 通过程序删除的文件不会经过回收站，需要调用moveToTrash()才进入回收站
+
+   Trash trash = New Trash(conf);
+
+   trash.moveToTrash(path);
+
+6. 恢复回收站数据
+
+   ```bash
+   [atguigu@hadoop102 hadoop-2.7.2]$ hadoop fs -mv
+   /user/atguigu/.Trash/Current/user/atguigu/input    /user/atguigu/input
+   ```
+
+7. 清空回收站
+
+   ```bash
+   [atguigu@hadoop102 hadoop-2.7.2]$ hadoop fs -expunge
+   ```
+
+## 7.4 快照管理
+
+![image-20210114095243373](./images/75.png)
+
+案例实操
+
+（1）开启/禁用指定目录的快照功能
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfsadmin -allowSnapshot /user/atguigu/input
+
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfsadmin -disallowSnapshot /user/atguigu/input
+```
+
+（2）对目录创建快照
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfs -createSnapshot /user/atguigu/input
+```
+
+​    通过web访问hdfs://hadoop102:50070/user/atguigu/input/.snapshot/s…..// 快照和源文件使用相同数据
+
+``` bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfs -lsr /user/atguigu/input/.snapshot/
+```
+
+（3）指定名称创建快照
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfs -createSnapshot /user/atguigu/input  miao170508
+```
+
+（4）重命名快照
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfs -renameSnapshot /user/atguigu/input/  miao170508 atguigu170508
+```
+
+（5）列出当前用户所有可快照目录
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs lsSnapshottableDir
+```
+
+（6）比较两个快照目录的不同之处
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs snapshotDiff
+ /user/atguigu/input/  .  .snapshot/atguigu170508
+```
+
+（7）恢复快照
+
+```bash
+[atguigu@hadoop102 hadoop-2.7.2]$ hdfs dfs -cp
+/user/atguigu/input/.snapshot/s20170708-134303.027 /user
+```
+
+# 8. HDFS HA高可用
+
+## 8.1 HA概述
+
+1）所谓HA（High Available），即高可用（7*24小时不中断服务）
+
+2）实现高可用最关键的策略是消除单点故障。HA严格来说应该分成各个组件的HA机制：HDFS的HA和YARN的HA。
+
+3）Hadoop2.0之前，在HDFS集群中NameNode存在单点故障（SPOF）。
+
+4）NameNode主要在以下两个方面影响HDFS集群
+
+​	NameNode机器发生意外，如宕机，集群将无法使用，直到管理员重启
+
+​	NameNode机器需要升级，包括软件、硬件升级，此时集群也将无法使用
+
+HDFS HA功能通过配置Active/Standby两个NameNodes实现在集群中对NameNode的热备来解决上述问题。如果出现故障，如机器崩溃或机器需要升级维护，这时可通过此种方式将NameNode很快的切换到另外一台机器。
+
+## 8.2 HDFS-HA工作机制
+
+通过双NameNode消除单点故障
+
+### 8.2.1 HDFS-HA工作要点
+
+1. 元数据管理方式需要改变
+
+   内存中各自保存一份元数据；
+
+   Edits日志只有Active状态的NameNode节点可以做写操作；
+
+   两个NameNode都可以读取Edits；
+
+   共享的Edits放在一个共享存储中管理（qjournal和NFS两个主流实现）
+
+2. 需要一个状态管理功能模块
+
+   实现了一个zkfailover，常驻在每一个namenode所在的节点，每一个zkfailover负责监控自己所在NameNode节点，利用zk进行状态标识，当需要进行状态切换时，由zkfailover来负责切换，切换时需要防止brain split现象的发生
+
+3. 必须保证两个NameNode之间能够ssh无密码登录
+
+4. 隔离（Fence），即同一时刻仅仅有一个NameNode对外提供服务
+
+### 8.2.2 HDFS-HA自动故障转移工作机制
+
+前面学习了使用命令hdfs haadmin -failover手动进行故障转移，在该模式下，即使现役NameNode已经失效，系统也不会自动从现役NameNode转移到待机NameNode，下面学习如何配置部署HA自动进行故障转移。自动故障转移为HDFS部署增加了两个新组件：ZooKeeper和ZKFailoverController（ZKFC）进程，如图3-20所示。ZooKeeper是维护少量协调数据，通知客户端这些数据的改变和监视客户端故障的高可用服务。HA的自动故障转移依赖于ZooKeeper的以下功能
+
+1）故障检测：集群中的每个NameNode在ZooKeeper中维护了一个持久会话，如果机器崩溃，ZooKeeper中的会话将终止，ZooKeeper通知另一个NameNode需要触发故障转移。
+
+2）现役NameNode选择：ZooKeeper提供了一个简单的机制用于唯一的选择一个节点为active状态。如果目前现役NameNode崩溃，另一个节点可能从ZooKeeper获得特殊的排外锁以表明它应该成为现役NameNode。
+
+ZKFC是自动故障转移中的另一个新组件，是ZooKeeper的客户端，也监视和管理NameNode的状态。每个运行NameNode的主机也运行了一个ZKFC进程，ZKFC负责:
+
+1）健康监测：ZKFC使用一个健康检查命令定期地ping与之在相同主机的NameNode，只要该NameNode及时地回复健康状态，ZKFC认为该节点是健康的。如果该节点崩溃，冻结或进入不健康状态，健康监测器标识该节点为非健康的。
+
+2）ZooKeeper会话管理：当本地NameNode是健康的，ZKFC保持一个在ZooKeeper中打开的会话。如果本地NameNode处于active状态，ZKFC也保持一个特殊的znode锁，该锁使用了ZooKeeper对短暂节点的支持，如果会话终止，锁节点将自动删除。
+
+3）基于ZooKeeper的选择：如果本地NameNode是健康的，且ZKFC发现没有其它的节点当前持有znode锁，它将为自己获取该锁。如果成功，则它已经赢得了选择，并负责运行故障转移进程以使它的本地NameNode为Active。故障转移进程与前面描述的手动故障转移相似，首先如果必要保护之前的现役NameNode，然后本地NameNode转换为Active状态
+
+![image-20210114104025470](./images/76.png)
+
+## 8.3 HDFS-HA集群配置
+
+### 8.3.1 环境准备
+
++ 修改IP
+
++ 修改主机名及主机名和IP地址的映射
+
++ 关闭防火墙
+
++ ssh免密登录
++ 安装JDK，配置环境变量等
+
+### 8.3.2 规划集群
+
+![image-20210114104210574](./images/77.png)
+
+### 8.3.3 配置Zookeeper集群
+
+1. 集群规划
+
+   在hadoop102、hadoop103和hadoop104三个节点上部署Zookeeper
+
+2. 解压安装
+
+   （1）解压Zookeeper安装包到/opt/module/目录下
+
+   ```bash
+   [atguigu@hadoop102 software]$ tar -zxvf zookeeper-3.4.10.tar.gz -C /opt/module/
+   ```
+
+   （2）在/opt/module/zookeeper-3.4.10/这个目录下创建zkData
+
+   ```bash
+   mkdir -p zkData
+   ```
+
+   （3）重命名/opt/module/zookeeper-3.4.10/conf这个目录下的zoo_sample.cfg为zoo.cfg
+
+   ```bash
+   mv zoo_sample.cfg zoo.cfg
+   ```
+
+   
+
+3. 配置zoo.cfg文件
+
+   （1）具体配置
+
+   ```bash
+   dataDir=/opt/module/zookeeper-3.4.10/zkData
+   ```
+
+   增加如下配置
+
+   ```bash
+   #######################cluster##########################
+   server.2=hadoop102:2888:3888
+   server.3=hadoop103:2888:3888
+   server.4=hadoop104:2888:3888
+   ```
+
+   （2）配置参数解读
+
+   Server.A=B:C:D。
+
+   A是一个数字，表示这个是第几号服务器；
+
+   B是这个服务器的IP地址；
+
+   C是这个服务器与集群中的Leader服务器交换信息的端口；
+
+   D是万一集群中的Leader服务器挂了，需要一个端口来重新进行选举，选出一个新的Leader，而这个端口就是用来执行选举时服务器相互通信的端口。
+
+   集群模式下配置一个文件myid，这个文件在dataDir目录下，这个文件里面有一个数据就是A的值，Zookeeper启动时读取此文件，拿到里面的数据与zoo.cfg里面的配置信息比较从而判断到底是哪个server
+
+4. 集群操作
+
+   （1）在/opt/module/zookeeper-3.4.10/zkData目录下创建一个myid的文件
+
+   ```bash
+   touch myid
+   ```
+
+   添加myid文件，注意一定要在linux里面创建，在notepad++里面很可能乱码
+
+   （2）编辑myid文件
+
+   ```bash
+   vi myid
+   ```
+
+   在文件中添加与server对应的编号：如2
+
+   （3）拷贝配置好的zookeeper到其他机器上
+
+   ```bash
+   scp -r zookeeper-3.4.10/ root@hadoop103.atguigu.com:/opt/app/
+   scp -r zookeeper-3.4.10/ root@hadoop104.atguigu.com:/opt/app/
+   ```
+
+   并分别修改myid文件中内容为3、4
+
+   （4）分别启动zookeeper
+
+   ```bash
+   [root@hadoop102 zookeeper-3.4.10]# bin/zkServer.sh start
+   [root@hadoop103 zookeeper-3.4.10]# bin/zkServer.sh start
+   [root@hadoop104 zookeeper-3.4.10]# bin/zkServer.sh start
+   ```
+
+   （5）查看状态
+
+   ```bash
+   [root@hadoop102 zookeeper-3.4.10]# bin/zkServer.sh status
+   JMX enabled by default
+   Using config: /opt/module/zookeeper-3.4.10/bin/../conf/zoo.cfg
+   Mode: follower
+   [root@hadoop103 zookeeper-3.4.10]# bin/zkServer.sh status
+   JMX enabled by default
+   Using config: /opt/module/zookeeper-3.4.10/bin/../conf/zoo.cfg
+   Mode: leader
+   [root@hadoop104 zookeeper-3.4.5]# bin/zkServer.sh status
+   JMX enabled by default
+   Using config: /opt/module/zookeeper-3.4.10/bin/../conf/zoo.cfg
+   Mode: follower
+   ```
+
+### 8.3.4 配置HDFS-HA集群
+
+1.  官方地址：http://hadoop.apache.org/
+
+2. 在opt目录下创建一个ha文件夹
+
+   ```bash
+   mkdir ha
+   ```
+
+3. 将/opt/app/下的 hadoop-2.7.2拷贝到/opt/ha目录下
+
+   ```bash
+   cp -r hadoop-2.7.2/ /opt/ha/
+   ```
+
+4. 配置hadoop-env.sh
+
+   ```bash
+   export JAVA_HOME=/opt/module/jdk1.8.0_144
+   ```
+
+5. 配置core-site.xml
+
+   ```xml
+   <configuration>
+   <!-- 把两个NameNode）的地址组装成一个集群mycluster -->
+   		<property>
+   			<name>fs.defaultFS</name>
+           	<value>hdfs://mycluster</value>
+   		</property>
+   
+   		<!-- 指定hadoop运行时产生文件的存储目录 -->
+   		<property>
+   			<name>hadoop.tmp.dir</name>
+   			<value>/opt/ha/hadoop-2.7.2/data/tmp</value>
+   		</property>
+   </configuration>
+   ```
+
+6. 配置hdfs-site.xml
+
+   ```xml
+   <configuration>
+   	<!-- 完全分布式集群名称 -->
+   	<property>
+   		<name>dfs.nameservices</name>
+   		<value>mycluster</value>
+   	</property>
+     <!-- 集群中NameNode节点都有哪些 -->
+   	<property>
+   		<name>dfs.ha.namenodes.mycluster</name>
+   		<value>nn1,nn2</value>
+   	</property>
+   
+   	<!-- nn1的RPC通信地址 -->
+   	<property>
+   		<name>dfs.namenode.rpc-address.mycluster.nn1</name>
+   		<value>hadoop102:9000</value>
+   	</property>
+   
+   	<!-- nn2的RPC通信地址 -->
+   	<property>
+   		<name>dfs.namenode.rpc-address.mycluster.nn2</name>
+   		<value>hadoop103:9000</value>
+   	</property>
+   
+   	<!-- nn1的http通信地址 -->
+   	<property>
+   		<name>dfs.namenode.http-address.mycluster.nn1</name>
+   		<value>hadoop102:50070</value>
+   	</property>
+   
+   	<!-- nn2的http通信地址 -->
+   	<property>
+   		<name>dfs.namenode.http-address.mycluster.nn2</name>
+   		<value>hadoop103:50070</value>
+   	</property>
+   
+   	<!-- 指定NameNode元数据在JournalNode上的存放位置 -->
+   	<property>
+   		<name>dfs.namenode.shared.edits.dir</name>
+   	<value>qjournal://hadoop102:8485;hadoop103:8485;hadoop104:8485/mycluster</value>
+   	</property>
+   
+   	<!-- 配置隔离机制，即同一时刻只能有一台服务器对外响应 -->
+   	<property>
+   		<name>dfs.ha.fencing.methods</name>
+   		<value>sshfence</value>
+   	</property>
+   
+   	<!-- 使用隔离机制时需要ssh无秘钥登录-->
+   	<property>
+   		<name>dfs.ha.fencing.ssh.private-key-files</name>
+   		<value>/home/atguigu/.ssh/id_rsa</value>
+   	</property>
+   
+   	<!-- 声明journalnode服务器存储目录-->
+   	<property>
+   		<name>dfs.journalnode.edits.dir</name>
+   		<value>/opt/ha/hadoop-2.7.2/data/jn</value>
+   	</property>
+     <!-- 关闭权限检查-->
+   	<property>
+   		<name>dfs.permissions.enable</name>
+   		<value>false</value>
+   	</property>
+   
+   	<!-- 访问代理类：client，mycluster，active配置失败自动切换实现方式-->
+   	<property>
+     		<name>dfs.client.failover.proxy.provider.mycluster</name>
+   	<value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+   	</property>
+   </configuration>
+   ```
+
+7. 拷贝配置好的hadoop环境到其他节点
+
+### 8.3.5 启动HDFS-HA集群
+
+1. 在各个JournalNode节点上，输入以下命令启动journalnode服务
+
+   ```bash
+   	sbin/hadoop-daemon.sh start journalnode
+   ```
+
+2. 在[nn1]上，对其进行格式化，并启动
+
+   ```bash
+   	bin/hdfs namenode -format
+   	sbin/hadoop-daemon.sh start namenode
+   ```
+
+3. 在[nn2]上，同步nn1的元数据信息
+
+   ```bash
+   bin/hdfs namenode -bootstrapStandby
+   ```
+
+4. 启动[nn2]
+
+   ```bash
+   sbin/hadoop-daemon.sh start namenode
+   ```
+
+   
+
+5. 查看web页面显示
+
+   ![image-20210114110647358](./images/78.png)
+
+   ![image-20210114110710822](./images/79.png)
+
+6. 在[nn1]上，启动所有datanode
+
+   ```bash
+   sbin/hadoop-daemons.sh start datanode
+   ```
+
+7. 将[nn1]切换为Active
+
+   ```bash
+   bin/hdfs haadmin -transitionToActive nn1
+   ```
+
+8. 查看是否Active
+
+   ```bash
+   	bin/hdfs haadmin -getServiceState nn1
+   ```
+
+### 8.3.6 配置HDFS-HA自动故障转移
+
+1. 具体配置
+
+   （1）在hdfs-site.xml中增加
+
+   ```xml
+   <property>
+   	<name>dfs.ha.automatic-failover.enabled</name>
+   	<value>true</value>
+   </property>
+   ```
+
+   （2）在core-site.xml文件中增加
+
+   ```xml
+   <property>
+   	<name>ha.zookeeper.quorum</name>
+   	<value>hadoop102:2181,hadoop103:2181,hadoop104:2181</value>
+   </property>
+   ```
+
+2. 启动
+
+   （1）关闭所有HDFS服务
+
+   ```bash
+   sbin/stop-dfs.sh
+   ```
+
+   （2）启动Zookeeper集群
+
+   ```bash
+   bin/zkServer.sh start
+   ```
+
+   （3）初始化HA在Zookeeper中状态
+
+   ```bash
+   bin/hdfs zkfc -formatZK
+   ```
+
+   （4）启动HDFS服务
+
+   ```bash
+   sbin/start-dfs.sh
+   ```
+
+   （5）在各个NameNode节点上启动DFSZK Failover Controller，先在哪台机器启动，哪个机器的NameNode就是Active NameNode
+
+   ```bash
+   sbin/hadoop-daemin.sh start zkfc
+   ```
+
+   
+
+3. 验证
+
+   （1）将Active NameNode进程kill
+
+   ```bash
+   kill -9 namenode的进程id
+   ```
+
+​               （2）将Active NameNode机器断开网络
+
+   ```bash
+    service network stop
+   ```
+
+
+
+## 8.4 YARN-HA配置
+
+### 8.4.1 YARN-HA工作机制
+
+1. 官方文档
+   http://hadoop.apache.org/docs/r2.7.2/hadoop-yarn/hadoop-yarn-site/ResourceManagerHA.html
+
+2. YARN-HA工作机制
+
+   ![image-20210114111736097](./images/80.png)
+
+### 8.4.2 配置YARN-HA集群
+
+1. 环境准备
+
+   （1）修改IP
+
+   （2）修改主机名及主机名和IP地址的映射
+
+   （3）关闭防火墙
+
+   （4）ssh免密登录
+
+   （5）安装JDK，配置环境变量等
+
+   （6）配置Zookeeper集群
+
+2. 规划集群
+
+   ![image-20210114111916638](./images/81.png)
+
+3. 具体配置
+
+   （1）yarn-site.xml
+
+   ```xml
+   <configuration>
+   
+       <property>
+           <name>yarn.nodemanager.aux-services</name>
+           <value>mapreduce_shuffle</value>
+       </property>
+   
+       <!--启用resourcemanager ha-->
+       <property>
+           <name>yarn.resourcemanager.ha.enabled</name>
+           <value>true</value>
+       </property>
+    
+       <!--声明两台resourcemanager的地址-->
+       <property>
+           <name>yarn.resourcemanager.cluster-id</name>
+           <value>cluster-yarn1</value>
+       </property>
+   
+       <property>
+           <name>yarn.resourcemanager.ha.rm-ids</name>
+           <value>rm1,rm2</value>
+       </property>
+   
+       <property>
+           <name>yarn.resourcemanager.hostname.rm1</name>
+           <value>hadoop102</value>
+       </property>
+   
+       <property>
+           <name>yarn.resourcemanager.hostname.rm2</name>
+           <value>hadoop103</value>
+       </property>
+    
+       <!--指定zookeeper集群的地址--> 
+       <property>
+           <name>yarn.resourcemanager.zk-address</name>
+           <value>hadoop102:2181,hadoop103:2181,hadoop104:2181</value>
+       </property>
+   
+       <!--启用自动恢复--> 
+       <property>
+           <name>yarn.resourcemanager.recovery.enabled</name>
+           <value>true</value>
+       </property>
+    
+       <!--指定resourcemanager的状态信息存储在zookeeper集群--> 
+       <property>
+           <name>yarn.resourcemanager.store.class</name>     <value>org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore</value>
+   </property>
+   
+   </configuration>
+   ```
+
+   
+
+4. 启动hdfs
+
+   （1）在各个JournalNode节点上，输入以下命令启动journalnode服务
+
+   ```bash
+   sbin/hadoop-daemon.sh start journalnode
+   ```
+
+   （2）在[nn1]上，对其进行格式化，并启动
+
+   ```bash
+   bin/hdfs namenode -format
+   sbin/hadoop-daemon.sh start namenode
+   ```
+
+   （3）在[nn2]上，同步nn1的元数据信息
+
+   ```bash
+   bin/hdfs namenode -bootstrapStandby
+   ```
+
+   （4）启动[nn2]
+
+   ```bash
+   sbin/hadoop-daemon.sh start namenode
+   ```
+
+   （5）启动所有DataNode
+
+   ```bash
+   sbin/hadoop-daemons.sh start datanode
+   ```
+
+   （6）将[nn1]切换为Active
+
+   ```bash
+   bin/hdfs haadmin -transitionToActive nn1
+   ```
+
+5. 启动YARN
+
+   （1）在hadoop102中执行
+
+   ```bash
+   sbin/start-yarn.sh
+   ```
+
+   （2）在hadoop103中执行
+
+   ```bash
+   sbin/yarn-daemon.sh start resourcemanager
+   ```
+
+   （3）查看服务状态
+
+   ```bash
+   bin/yarn rmadmin -getServiceState rm1
+   ```
+
+   ![image-20210114112326702](./images/82.png)
+
+
+
+## 8.5 HDFS Federation架构设计
+
+1. NameNode架构的局限性
+
+   （1）Namespace（命名空间）的限制
+
+   由于NameNode在内存中存储所有的元数据（metadata），因此单个NameNode所能存储的对象（文件+块）数目受到NameNode所在JVM的heap size的限制。50G的heap能够存储20亿（200million）个对象，这20亿个对象支持4000个DataNode，12PB的存储（假设文件平均大小为40MB）。随着数据的飞速增长，存储的需求也随之增长。单个DataNode从4T增长到36T，集群的尺寸增长到8000个DataNode。存储的需求从12PB增长到大于100PB。
+
+   （2）隔离问题
+
+   由于HDFS仅有一个NameNode，无法隔离各个程序，因此HDFS上的一个实验程序就很有可能影响整个HDFS上运行的程序
+
+   （3）性能的瓶颈
+
+   由于是单个NameNode的HDFS架构，因此整个HDFS文件系统的吞吐量受限于单个NameNode的吞吐量
+
+2. HDFS Federation架构设计
+
+   能不能有多个NameNode
+
+   ![image-20210114112655649](./images/83.png)
+
+   ![image-20210114112726090](./images/84.png)
+
+   
+
+3. HDFS Federation应用思考
+
+   不同应用可以使用不同NameNode进行数据管理
+
+   ​		图片业务、爬虫业务、日志审计业务
+
+   Hadoop生态系统中，不同的框架使用不同的NameNode进行管理NameSpace。（隔离性）
+
