@@ -405,9 +405,26 @@ http://hadoop102:16010
 
 ## 3.4 **读流程**
 
+![image-20210118194831982](./images/7.png)
 
+1. Client 先访问 zookeeper，获取 hbase:meta 表位于哪个 Region Server
+2. 访问对应的 Region Server，获取 hbase:meta 表，根据读请求的 namespace:table/rowkey，查询出目标数据位于哪个 Region Server 中的哪个 Region 中。并将该 table 的 region 信息以及 meta 表的位置信息缓存在客户端的 meta cache，方便下次访问
+3. 与目标 Region Server 进行通讯
+4. 分别在 Block Cache（读缓存），MemStore 和 Store File（HFile）中查询目标数据，并将查到的所有数据进行合并。此处所有数据是指同一条数据的不同版本（time stamp）或者不同的类型（Put/Delete）
+5. 将从文件中查询到的数据块（Block，HFile 数据存储单元，默认大小为 64KB）缓存到Block Cache
+6. 将合并后的最终结果返回给客户端
 
-   
+## 3.5  **StoreFile Compaction**
+
+由于memstore每次刷写都会生成一个新的HFile，且同一个字段的不同版本（timestamp）和不同类型（Put/Delete）有可能会分布在不同的 HFile 中，因此查询时需要遍历所有的 HFile。
+
+为了减少 HFile 的个数，以及清理掉过期和删除的数据，会进行 StoreFile Compaction。
+
+Compaction 分为两种，分别是 Minor Compaction 和 Major Compaction。Minor Compaction会将临近的若干个较小的 HFile 合并成一个较大的 HFile，但**不会**清理过期和删除的数据。
+
+Major Compaction 会将一个 Store 下的所有的 HFile 合并成一个大 HFile，并且**会**清理掉过期和删除的数据
+
+![image-20210118195648938](./images/8.png)
 
    
 
