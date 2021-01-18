@@ -19,6 +19,9 @@ netstat -nultp | grep 端口号
 
 ## 4. vmware虚拟机
 ### 4.1 固定IP
+
+00:50:56:2B:D1:5E
+
 + 编辑ip地址文件  
 vim /etc/udev/rules.d/70-persistent-ipoib.rules  
 追加以下内容:  
