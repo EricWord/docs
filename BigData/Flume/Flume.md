@@ -8,7 +8,7 @@ Flume 是 Cloudera 提供的一个高可用的，高可靠的，分布式的海�
 
 **为什么选用Flume**
 
-![image-20210116120521888](.\images\1.png)
+![image-20210116120521888](./images/1.png)
 
 ## 1.2 **Flume** **基础架构**
 
@@ -1754,3 +1754,4 @@ Flume 的事务机制（类似数据库的事务机制）：Flume 使用两个�
 
 Flume 不会丢失数据，但是有可能造成数据的重复，例如数据已经成功由 Sink 发出，但是没有接收到响应，Sink 会再次发送数据，此时可能会导致数据的重复。
 
+![image-20210118104410911](/Users/cuiguangsong/Library/Application Support/typora-user-images/image-20210118104410911.png)
