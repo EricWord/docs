@@ -117,5 +117,143 @@
 
 
 
-# 2. 运行架构
+# 2. 快速上手
+
+## 2.1 搭建 maven 工程
+
+pom 文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.example</groupId>
+    <artifactId>FlinkStudy</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-java</artifactId>
+            <version>1.10.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-streaming-java_2.12</artifactId>
+            <version>1.10.1</version>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+## 2.2 批处理 wordcount
+
+```java
+package net.codeshow.wc;
+
+import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.java.DataSet;
+import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.api.java.operators.AggregateOperator;
+import org.apache.flink.api.java.operators.DataSource;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.util.Collector;
+
+/**
+ * @Description
+ * @Author eric
+ * @Version V1.0.0
+ * @Date 2021/1/19
+ */
+
+// 批处理 word count
+public class WordCount {
+    public static void main(String[] args) throws Exception {
+//        创建执行环境
+        ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+//        从文件中读取数据
+        String inputPath = "/Users/cuiguangsong/my_files/workspace/java/FlinkStudy/src/main/resources/hello.txt";
+        DataSet<String> inputDataSet = env.readTextFile(inputPath);
+//        对数据集进行处理，按空格分词展开，转换成(word,1)二元组进行统计
+        DataSet<Tuple2<String, Integer>> resultSet = inputDataSet.flatMap(new MyFlatMapper())
+//                按照第一个位置的word分组
+                .groupBy(0)
+//                将第二个位置上的数据求和
+                .sum(1);
+        resultSet.print();
+
+
+    }
+
+    //    自定义类，实现FlatMapFunction接口
+    public static class MyFlatMapper implements FlatMapFunction<String, Tuple2<String, Integer>> {
+
+        public void flatMap(String value, Collector<Tuple2<String, Integer>> out) throws Exception {
+//        按照空格分词
+            String[] words = value.split(" ");
+//            遍历所有word，包装成二元组输出
+            for (String word : words) {
+                out.collect(new Tuple2<>(word, 1));
+
+            }
+
+        }
+    }
+}
+
+```
+
+## 2.3 流处理 wordcount
+
+```java
+package net.codeshow.wc;
+
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+
+/**
+ * @Description
+ * @Author eric
+ * @Version V1.0.0
+ * @Date 2021/1/19
+ */
+public class StreamWordCount {
+    public static void main(String[] args) throws Exception {
+//        创建流处理执行环境
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setParallelism(1);
+//        String inputPath = "/Users/cuiguangsong/my_files/workspace/java/FlinkStudy/src/main/resources/hello.txt";
+//        DataStream<String> inputDataStream = env.readTextFile(inputPath);
+//        用parameterTool工具从程序启动参数中提取配置项
+        ParameterTool parameterTool = ParameterTool.fromArgs(args);
+        String host = parameterTool.get("host");
+        int port = parameterTool.getInt("port");
+
+//        从socket文本流读取数据
+        DataStream<String> inputDataStream = env.socketTextStream(host, port);
+//        基于数据流进行转换计算
+        DataStream<Tuple2<String, Integer>> resultStream = inputDataStream.flatMap(new WordCount.MyFlatMapper())
+                .keyBy(0)
+                .sum(1);
+        resultStream.print();
+//        执行任务
+        env.execute();
+
+    }
+}
+
+```
+
+测试——在 linux 系统中用 netcat 命令进行发送测试。
+
+```bash
+nc -lk 7777
+```
 
