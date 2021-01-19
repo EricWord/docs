@@ -257,3 +257,194 @@ public class StreamWordCount {
 nc -lk 7777
 ```
 
+# 3. Flink 部署
+
+## 3.1 Standalone 模式
+
+### 3.1.1 **安装**
+
+解压缩 flink-1.10.1-bin-scala_2.12.tgz，进入 conf 目录中
+
+1. *修改* *flink/conf/flink-conf.yaml* *文件*
+
+   ![image-20210119163357963](./images/13.png)
+
+2. *修改* */conf/slaves* *文件*
+
+   ![image-20210119163420142](./images/14.png)
+
+3. 分发给另外两台机器
+
+   ![image-20210119163438028](./images/15.png)
+
+4. *启动*
+
+   ![image-20210119163501810](./images/16.png)
+
+   访问 http://localhost:8081 可以对 flink 集群和任务进行监控管理。
+
+   ![image-20210119163548369](./images/17.png)
+
+
+
+### 3.1.2 **提交任务**
+
+1. *准备数据文件（如果需要）*
+
+   ![image-20210119163726083](./images/18.png)
+
+2. *把含数据文件的文件夹，分发到* *taskmanage* *机器中*
+
+   ![image-20210119163746586](./images/19.png)
+
+   如 果 从 文 件 中 读 取 数 据 ， 由 于 是 从 本 地 磁 盘 读 取 ， 实 际 任 务 会 被 分 发 到taskmanage 的机器中，所以要把目标文件分发
+
+3. *执行程序*
+
+   ```bash
+   ./flink run -c com.atguigu.wc.StreamWordCount –p 2 FlinkTutorial-1.0-SNAPSHOT-jar-with-dependencies.jar --host lcoalhost –port 7777
+   ```
+
+   ![image-20210119163843491](./images/20.png)
+
+4. *查看计算结果*
+
+   注意：如果输出到控制台，应该在 taskmanager 下查看；如果计算结果输出到文件，同样会保存到 taskmanage 的机器下，不会在 jobmanage 下
+
+   ![image-20210119163927842](./images/21.png)
+
+5. *在* *webui* *控制台查看计算过程*
+
+   ![image-20210119163957214](./images/22.png)
+
+## 3.2 Yarn 模式
+
+以 Yarn 模式部署 Flink 任务时，要求 Flink 是有 Hadoop 支持的版本，Hadoop环境需要保证版本在 2.2 以上，并且集群中安装有 HDFS 服务
+
+### 3.2.1  **Flink on Yarn**
+
+Flink 提供了两种在 yarn 上运行的模式，分别为 Session-Cluster 和 Per-Job-Cluster模式。
+
+1. **Session-cluster** **模式**
+
+   ![image-20210119164145653](./images/23.png)
+
+   Session-Cluster 模式需要先启动集群，然后再提交作业，接着会向 yarn 申请一块空间后，资源永远保持不变。如果资源满了，下一个作业就无法提交，只能等到yarn 中的其中一个作业执行完成后，释放了资源，下个作业才会正常提交。所有作业共享 Dispatcher 和 ResourceManager；共享资源；适合规模小执行时间短的作业
+
+   在 yarn 中初始化一个 flink 集群，开辟指定的资源，以后提交任务都向这里提交。这个 flink 集群会常驻在 yarn 集群中，除非手工停止
+
+2. **Per-Job-Cluster** **模式**
+
+   ![image-20210119164411764](./images/24.png)
+
+   一个 Job 会对应一个集群，每提交一个作业会根据自身的情况，都会单独向 yarn申请资源，直到作业执行完成，一个作业的失败与否并不会影响下一个作业的正常提交和运行。独享 Dispatcher 和 ResourceManager，按需接受资源申请；适合规模大长时间运行的作业
+
+   每次提交都会创建一个新的 flink 集群，任务之间互相独立，互不影响，方便管理。任务执行完成之后创建的集群也会消失
+
+### 3.2.2 **Session Cluster**
+
+1. *启动* *hadoop* *集群（略）*
+
+2. *启动* *yarn-session*
+
+   ```bash
+   ./yarn-session.sh -n 2 -s 2 -jm 1024 -tm 1024 -nm test -d
+   ```
+
+   其中：
+
+   -n(--container)：TaskManager 的数量。
+
+   -s(--slots)： 每个 TaskManager 的 slot 数量，默认一个 slot 一个 core，默认每个
+
+   taskmanager 的 slot 的个数为 1，有时可以多一些 taskmanager，做冗余。
+
+   -jm：JobManager 的内存（单位 MB)。 
+
+   -tm：每个 taskmanager 的内存（单位 MB)。 
+
+   -nm：yarn 的 appName(现在 yarn 的 ui 上的名字)。 
+
+   -d：后台执行
+
+   ![image-20210119164648536](./images/25.png)
+
+3. *执行任务*
+
+   ```bash
+   ./flink run -c com.atguigu.wc.StreamWordCount FlinkTutorial-1.0-SNAPSHOT-jar-with-dependencies.jar --host lcoalhost –port 7777
+   ```
+
+4. *去* *yarn* *控制台查看任务状态*
+
+   ![image-20210119164734223](./images/26.png)
+
+5. *取消* *yarn-session*
+
+   ```bash
+   yarn application --kill application_1577588252906_0001
+   ```
+
+### 3.2.2  **Per Job Cluster**
+
+1. *启动* *hadoop* *集群（略）*
+
+2. **不启动** **yarn-session***，直接执行* *job*
+
+   ```bash
+   ./flink run –m yarn-cluster -c com.atguigu.wc.StreamWordCount FlinkTutorial-1.0-SNAPSHOT-jar-with-dependencies.jar --host lcoalhost –port 7777
+   ```
+
+## 3.3 Kubernetes 部署
+
+容器化部署时目前业界很流行的一项技术，基于 Docker 镜像运行能够让用户更加 方 便地 对应 用进 行管 理 和运 维。 容器 管理 工 具中 最为 流行 的就 是 Kubernetes（k8s），而 Flink 也在最近的版本中支持了 k8s 部署模式
+
+1）搭建 *Kubernetes* *集群（略）*
+
+2）配置各组件的 *yaml* *文件*
+
+在 k8s 上构建 Flink Session Cluster，需要将 Flink 集群的组件对应的 docker 镜像分别在 k8s 上启动，包括 JobManager、TaskManager、JobManagerService 三个镜像服务。每个镜像服务都可以从中央镜像仓库中获取
+
+3）启动 *Flink Session Cluster*
+
+```bash
+// 启动 jobmanager-service 服务
+kubectl create -f jobmanager-service.yaml
+// 启动 jobmanager-deployment 服务
+kubectl create -f jobmanager-deployment.yaml
+// 启动 taskmanager-deployment 服务
+kubectl create -f taskmanager-deployment.yaml
+```
+
+4）访问 *Flink UI* *页面*
+
+集群启动后，就可以通过 JobManagerServicers 中配置的 WebUI 端口，用浏览器输入以下 url 来访问 Flink UI 页面了：
+
+http://*{JobManagerHost:Port}*/api/v1/namespaces/default/services/flink-jobmanager:ui/proxy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
