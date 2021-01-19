@@ -13,7 +13,6 @@ Flume 是 Cloudera 提供的一个高可用的，高可靠的，分布式的海�
 ## 1.2 **Flume** **基础架构**
 
 ![image-20210116120634404](./images/2.png)
-
 ### 1.2.1  **Agent**
 
 Agent 是一个 JVM 进程，它以事件的形式将数据从源头送至目的。
@@ -47,7 +46,6 @@ File Channel 将所有事件写到磁盘。因此在程序关闭或机器宕机�
 Event 由 **Header** 和 **Body** 两部分组成，Header 用来存放该 event 的一些属性，为 K-V 结构，Body 用来存放该条数据，形式为字节数组
 
 ![image-20210116121349305](./images/3.png)
-
 # 2. **Flume** **快速入门**
 
 ## 2.1 **Flume** **安装部署**
@@ -103,7 +101,6 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
    ![image-20210116122450083](./images/4.png)
 
    ![image-20210116122513991](./images/5.png)
-
 3. **实现步骤**
 
    + **安装 netcat 工具** 
@@ -159,8 +156,8 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
      注：配置文件来源于官方手册 http://flume.apache.org/FlumeUserGuide.html
 
      **配置文件解析**
-
-     ![image-20210116122939087](./images/6.png)
+     
+      ![image-20210116122939087](./images/6.png)****
 
 4. **先开启 flume 监听端口**
 
@@ -199,8 +196,7 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
 
 6. **在 Flume 监听页面观察接收数据情况**
 
-   ![image-20210116125913694](./images/7.png)
-
+![image-20210116125913694](./images/7.png)
 ### 2.2.2 **实时监控单个追加文件**
 
 1. **案例需求**
@@ -209,8 +205,7 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
 
 2. **需求分析**
 
-   ![image-20210116130104989](./images/8.png)
-
+![image-20210116130104989](./images/8.png)
 3. **实现步骤**
 
    + **Flume 要想将数据输出到 HDFS，须持有 Hadoop 相关 jar 包**
@@ -283,8 +278,8 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
      hdfs.useLocalTimeStamp 设置为 true，此方法会使用 TimestampInterceptor 自动添加timestamp）
 
      a3.sinks.k3.hdfs.useLocalTimeStamp = true
-
-     ![image-20210116131022288](./images/9.png)
+     
+      ![image-20210116131022288](./images/9.png)
 
    + **运行 Flume**
 
@@ -304,7 +299,7 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
 
    + **在 HDFS 上查看文件**
 
-     ![image-20210116140028756](./images/10.png)
+ ![image-20210116140028756](./images/10.png)
 
 ### 2.2.3 **实时监控目录下多个新文件**
 
@@ -314,8 +309,7 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
 
 2. **需求分析**
 
-   ![image-20210117105941768](./images/11.png)
-
+![image-20210117105941768](./images/11.png)
 3. **实现步骤**
 
    + **创建配置文件 flume-dir-hdfs.conf** 
@@ -336,8 +330,9 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
      a3.sources.r3.fileSuffix = .COMPLETED
      a3.sources.r3.fileHeader = true
      #忽略所有以.tmp 结尾的文件，不上传
+
      a3.sources.r3.ignorePattern = ([^ ]*/.tmp)
-     # Describe the sink
+```
      a3.sinks.k3.type = hdfs
      a3.sinks.k3.hdfs.path = 
      hdfs://hadoop102:9000/flume/upload/%Y%m%d/%H
@@ -367,7 +362,11 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
      # Bind the source and sink to the channel
      a3.sources.r3.channels = c3
      a3.sinks.k3.channel = c3
+     
      ```
+     
+     ```
+
 
      ![image-20210117110152082](./images/12.png)
 
@@ -399,7 +398,9 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
 
    + **查看 HDFS 上的数据**
 
-     ![image-20210117110451558](E:/Projects/docs/BigData/Flume/images/13.png)
+
+     ![image-20210117110451558](./images/13.png)
+
 
    +  **等待 1s，再次查询 upload 文件夹**
 
@@ -423,6 +424,7 @@ Exec source 适用于监控一个实时追加的文件，但不能保证数据�
 2. **需求分析**
 
    ![image-20210117110946223](./images/14.png)
+
 
 3. **实现步骤**
 
@@ -503,24 +505,25 @@ Exec source 适用于监控一个实时追加的文件，但不能保证数据�
 
      ![image-20210117111339392](./images/16.png)
 
+
      **Taildir 说明：**
-
+    
      Taildir Source 维护了一个 json 格式的 position File，其会定期的往 position File中更新每个文件读取到的最新的位置，因此能够实现断点续传。
-
+    
      Position File 的格式如下：
-
+    
      ```json
      {"inode":2496272,"pos":12,"file":"/opt/module/flume/files/file1.txt"}
      {"inode":2496275,"pos":12,"file":"/opt/module/flume/files/file2.txt"}
      ```
-
+    
     # 3. **Flume** **进阶**
 
    ## 3.1 **Flume** **事务**
-   
+
    ![image-20210117212623475](./images/17.png)
-   
-     
+
+​     
 
 ## 3.2 **Flume Agent** **内部原理**
 
@@ -1076,7 +1079,8 @@ Flume支持使用将多个sink逻辑上分到一个sink组，sink组配合不同
 
    + **检查 hadoop104 上数据**
 
-     ![image-20210117215213225](E:/Projects/docs/BigData/Flume/images/27.png)
+     ![image-20210117215213225](./images/27.png)
+
 
 ## 3.5 **自定义** **Interceptor**
 
@@ -1672,10 +1676,14 @@ Flume支持使用将多个sink逻辑上分到一个sink组，sink组配合不同
 2. **启动 Flume 任务**
 
    ```bash
-   [atguigu@hadoop102 flume]$ bin/flume-ng agent /
-   --conf conf/ /
-   --name a1 /
-   --conf-file job/flume-netcat-logger.conf / -Dflume.root.logger==INFO,console / -Dflume.monitoring.type=ganglia / -Dflume.monitoring.hosts=192.168.9.102:8649
+
+   [atguigu@hadoop102 flume]$ bin/flume-ng agent \
+   --conf conf/ \
+   --name a1 \
+   --conf-file job/flume-netcat-logger.conf \ -Dflume.root.logger==INFO,console \ -Dflume.monitoring.type=ganglia \ -Dflume.monitoring.hosts=192.168.9.102:8649
+   
+   ```
+   
    ```
 
    
@@ -1754,4 +1762,4 @@ Flume 的事务机制（类似数据库的事务机制）：Flume 使用两个�
 
 Flume 不会丢失数据，但是有可能造成数据的重复，例如数据已经成功由 Sink 发出，但是没有接收到响应，Sink 会再次发送数据，此时可能会导致数据的重复。
 
-![image-20210118104410911](/Users/cuiguangsong/Library/Application Support/typora-user-images/image-20210118104410911.png)
+
