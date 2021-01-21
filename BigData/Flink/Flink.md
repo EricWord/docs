@@ -416,12 +416,755 @@ kubectl create -f jobmanager-deployment.yaml
 kubectl create -f taskmanager-deployment.yaml
 ```
 
-4）访问 *Flink UI* *页面*
+4）访问 *Flink UI* 页面
 
 集群启动后，就可以通过 JobManagerServicers 中配置的 WebUI 端口，用浏览器输入以下 url 来访问 Flink UI 页面了：
 
 http://*{JobManagerHost:Port}*/api/v1/namespaces/default/services/flink-jobmanager:ui/proxy
 
+# 4. Flink 运行架构
+
+## 4.1 Flink 运行时的组件
+
+Flink 运行时架构主要包括四个不同的组件，它们会在运行流处理应用程序时协同工作：
+
+作业管理器（JobManager）、资源管理器（ResourceManager）、任务管理器（TaskManager），以及分发器（Dispatcher）。因为 Flink 是用 Java 和 Scala 实现的，所以所有组件都会运行在Java 虚拟机上。每个组件的职责如下
+
+1. 作业管理器（JobManager）
+
+   控制一个应用程序执行的主进程，也就是说，每个应用程序都会被一个不同的JobManager 所控制执行。JobManager 会先接收到要执行的应用程序，这个应用程序会包括：作业图（JobGraph）、逻辑数据流图（logical dataflow graph）和打包了所有的类、库和其它资源的 JAR 包。JobManager 会把 JobGraph 转换成一个物理层面的数据流图，这个图被叫做“执行图”（ExecutionGraph），包含了所有可以并发执行的任务。JobManager 会向资源管理器（ResourceManager）请求执行任务必要的资源，也就是任务管理器（TaskManager）上的插槽（slot）。一旦它获取到了足够的资源，就会将执行图分发到真正运行它们的TaskManager 上。而在运行过程中，JobManager 会负责所有需要中央协调的操作，比如说检查点（checkpoints）的协调
+
+2. 资源管理器（ResourceManager）
+
+   主要负责管理任务管理器（TaskManager）的插槽（slot），TaskManger 插槽是 Flink 中定义的处理资源单元。Flink 为不同的环境和资源管理工具提供了不同资源管理器，比如YARN、Mesos、K8s，以及 standalone 部署。当 JobManager 申请插槽资源时，ResourceManager会将有空闲插槽的 TaskManager 分配给 JobManager。如果 ResourceManager 没有足够的插槽来满足 JobManager 的请求，它还可以向资源提供平台发起会话，以提供启动 TaskManager进程的容器。另外，ResourceManager 还负责终止空闲的TaskManager，释放计算资源
+
+3. 任务管理器（TaskManager）
+
+   Flink 中的工作进程。通常在 Flink 中会有多个 TaskManager 运行，每一个 TaskManager都包含了一定数量的插槽（slots）。插槽的数量限制了 TaskManager 能够执行的任务数量。启动之后，TaskManager 会向资源管理器注册它的插槽；收到资源管理器的指令后，TaskManager 就会将一个或者多个插槽提供给 JobManager 调用。JobManager 就可以向插槽分配任务（tasks）来执行了。在执行过程中，一个 TaskManager 可以跟其它运行同一应用程序的 TaskManager 交换数据
+
+4. 分发器（Dispatcher）
+
+   可以跨作业运行，它为应用提交提供了 REST 接口。当一个应用被提交执行时，分发器就会启动并将应用移交给一个 JobManager。由于是 REST 接口，所以 Dispatcher 可以作为集群的一个 HTTP 接入点，这样就能够不受防火墙阻挡。Dispatcher 也会启动一个 Web UI，用来方便地展示和监控作业执行的信息。Dispatcher 在架构中可能并不是必需的，这取决于应用提交运行的方式
+
+## 4.2 任务提交流程
+
+我们来看看当一个应用提交执行时，Flink 的各个组件是如何交互协作的：
+
+![image-20210119182404858](./images/27.png)
+
+上图是从一个较为高层级的视角，来看应用中各组件的交互协作。如果部署的集群环境不同（例如 YARN，Mesos，Kubernetes，standalone 等），其中一些步骤可以被省略，或是有些组件会运行在同一个 JVM 进程中
+
+具体地，如果我们将 Flink 集群部署到 YARN 上，那么就会有如下的提交流程：
+
+![image-20210119182607718](./images/28.png)
+
+Flink 任务提交后，Client 向 HDFS 上传 Flink 的 Jar 包和配置，之后向 Yarn ResourceManager 提交任务，ResourceManager 分配 Container 资源并通知对应的NodeManager 启动 ApplicationMaster，ApplicationMaster 启动后加载 Flink 的 Jar 包和配置构建环境，然后启动 JobManager，之后 ApplicationMaster 向 ResourceManager申请资源启动 TaskManager ， ResourceManager 分 配 Container 资 源 后 ， 由ApplicationMaster 通 知 资 源 所 在 节 点 的 NodeManager 启 动 TaskManager ，NodeManager 加载 Flink 的 Jar 包和配置构建环境并启动 TaskManager，TaskManager启动后向 JobManager 发送心跳包，并等待 JobManager 向其分配任务。
+
+
+
+## 4.3 任务调度原理
+
+![image-20210119183110013](./images/29.png)
+
+客户端不是运行时和程序执行 的一部分，但它用于准备并发送dataflow(JobGraph)给 Master(JobManager)，然后，客户端断开连接或者维持连接以等待接收计算结果
+
+当 Flink 集 群 启 动 后 ， 首 先 会 启 动 一 个 JobManger 和一个或多个的TaskManager。由 Client 提交任务给 JobManager，JobManager 再调度任务到各个TaskManager 去执行，然后 TaskManager 将心跳和统计信息汇报给 JobManager。TaskManager 之间以流的形式进行数据的传输。上述三者均为独立的 JVM 进程。
+
+**Client** 为提交 Job 的客户端，可以是运行在任何机器上（与 JobManager 环境连通即可）。提交 Job 后，Client 可以结束进程（Streaming 的任务），也可以不结束并等待结果返回
+
+**JobManager** 主 要 负 责 调 度 Job 并 协 调 Task 做 checkpoint， 职 责 上 很 像Storm 的 Nimbus。从 Client 处接收到 Job 和 JAR 包等资源后，会生成优化后的执行计划，并以 Task 的单元调度到各个 TaskManager 去执行
+
+**TaskManager** 在启动的时候就设置好了槽位数（Slot），每个 slot 能启动一个Task，Task 为线程。从 JobManager 处接收需要部署的 Task，部署启动后，与自己的上游建立 Netty 连接，接收数据并处理
+
+
+
+### 4.3.1 **TaskManger** **与** **Slots**
+
+Flink 中每一个 worker(TaskManager)都是一个 **JVM** **进程**，它可能会在独立的线程上执行一个或多个 subtask。为了控制一个 worker 能接收多少个 task，worker 通 过 task slot 来进行控制（一个 worker 至少有一个 task slot）
+
+每个 task slot 表示 TaskManager 拥有资源的**一个固定大小的子集**。假如一个TaskManager 有三个 slot，那么它会将其管理的内存分成三份给各个 slot。资源 slot化意味着一个 subtask 将不需要跟来自其他 job 的 subtask 竞争被管理的内存，取而代之的是它将拥有一定数量的内存储备。需要注意的是，这里不会涉及到 CPU 的隔离，slot 目前仅仅用来隔离 task 的受管理的内存
+
+通过调整 task slot 的数量，允许用户定义 subtask 之间如何互相隔离。如果一个TaskManager 一个 slot，那将意味着每个 task group 运行在独立的 JVM 中（该 JVM可能是通过一个特定的容器启动的），而一个 TaskManager 多个 slot 意味着更多的subtask 可以共享同一个 JVM。而在同一个 JVM 进程中的 task 将共享 TCP 连接（基于多路复用）和心跳消息。它们也可能共享数据集和数据结构，因此这减少了每个task 的负载
+
+![image-20210119183747329](./images/30.png)
+
+默认情况下，Flink 允许子任务共享 slot，即使它们是不同任务的子任务（前提是它们来自同一个 job）。 这样的结果是，一个 slot 可以保存作业的整个管道
+
+**Task Slot** **是静态的概念，是指** **TaskManager** **具有的并发执行能力**，可以通过参数 taskmanager.numberOfTaskSlots 进行配置；而**并行度** **parallelism** 是动态概念，即TaskManager运行程序时实际使用的并发能力，可以通过参数 parallelism.default进行配置
+
+也就是说，假设一共有 3 个 TaskManager，每一个 TaskManager 中的分配 3 个TaskSlot，也就是每个 TaskManager 可以接收 3 个 task，一共 9 个 TaskSlot，如果我们设置 parallelism.default=1，即运行程序默认的并行度为 1，9 个 TaskSlot 只用了 1个，有 8 个空闲，因此，设置合适的并行度才能提高效率
+
+![image-20210119184056225](./images/31.png)
+
+![image-20210119184118040](./images/32.png)
+
+
+
+### 4.3 2 程序与数据流（DataFlow）
+
+![image-20210119184246256](./images/33.png)
+
+所有的 Flink 程序都是由三部分组成的： **Source** 、**Transformation** 和 **Sink**。
+
+Source 负责读取数据源，Transformation 利用各种算子进行处理加工，Sink 负责输出。
+
+在运行时，Flink 上运行的程序会被映射成“逻辑数据流”（dataflows），它包含了这三部分。**每一个** **dataflow** **以一个或多个** **sources** **开始以一个或多个** **sinks** **结**束。dataflow 类似于任意的有向无环图（DAG）。在大部分情况下，程序中的转换运算（transformations）跟 dataflow 中的算子（operator）是一一对应的关系，但有时候，一个transformation 可能对应多个 operator。
+
+![image-20210119184430030](./images/34.png)
+
+### 4.3.3 执行图（ExecutionGraph）
+
+​	由 Flink 程序直接映射成的数据流图是 StreamGraph，也被称为逻辑流图，因为它们表示的是计算逻辑的高级视图。为了执行一个流处理程序，Flink 需要将逻辑流图转换为物理数据流图（也叫执行图），详细说明程序的执行方式。
+
+Flink 中的执行图可以分成四层：StreamGraph -> JobGraph -> ExecutionGraph -> 物理执行图
+
+**StreamGraph**：是根据用户通过 Stream API 编写的代码生成的最初的图。用来表示程序的拓扑结构
+
+**JobGraph**：StreamGraph 经过优化后生成了 JobGraph，提交给 JobManager 的数据结构。主要的优化为，将多个符合条件的节点 chain 在一起作为一个节点，这样可以减少数据在节点之间流动所需要的序列化/反序列化/传输消耗。
+
+**ExecutionGraph** ： JobManager 根 据 JobGraph 生 成 ExecutionGraph 。ExecutionGraph 是 JobGraph 的并行化版本，是调度层最核心的数据结构。
+
+**物理执行图**：JobManager 根据 ExecutionGraph 对 Job 进行调度后，在各个TaskManager 上部署 Task 后形成的“图”，并不是一个具体的数据结构。
+
+![image-20210119184807748](./images/35.png)
+
+### 4.3.4 并行度（Parallelism）
+
+Flink 程序的执行具有**并行、分布式**的特性.
+
+在执行过程中，一个流（stream）包含一个或多个分区（stream partition），而每一个算子（operator）可以包含一个或多个子任务（operator subtask），这些子任务在不同的线程、不同的物理机或不同的容器中彼此互不依赖地执行
+
+一个特定算子的子任务（subtask）的个数被称之为其并行度（parallelism）
+
+一般情况下，一个流程序的并行度，可以认为就是其所有算子中最大的并行度。一个程序中，不同的算子可能具有不同的并行度。
+
+![image-20210119185153347](./images/36.png)
+
+Stream 在算子之间传输数据的形式可以是 one-to-one(forwarding)的模式也可以是 redistributing 的模式，具体是哪一种形式，取决于算子的种类
+
+**One-to-one**：stream(比如在 source 和 map operator 之间)维护着分区以及元素的顺序。那意味着 map 算子的子任务看到的元素的个数以及顺序跟 source 算子的子任务生产的元素的个数、顺序相同，map、fliter、flatMap 等算子都是 one-to-one 的对应关系。类似于 spark 中的**窄依赖**
+
+**Redistributing**：stream(map()跟 keyBy/window 之间或者 keyBy/window 跟 sink之间)的分区会发生改变。每一个算子的子任务依据所选择的 transformation 发送数据到不同的目标任务。例如，keyBy() 基于 hashCode 重分区、broadcast 和 rebalance会随机重新分区，这些算子都会引起 redistribute 过程，而 redistribute 过程就类似于Spark 中的 shuffle 过程。类似于 spark 中的**宽依赖**
+
+### 4.3.5 任务链（Operator Chains）
+
+**相同并行度的** **one to one** **操作**，Flink 这样相连的算子链接在一起形成一个 task，原来的算子成为里面的一部分。将算子链接成 task 是非常有效的优化：它能减少线程之间的切换和基于缓存区的数据交换，在减少时延的同时提升吞吐量。链接的行为可以在编程 API 中进行指定
+
+![image-20210120093931944](./images/37.PNG)
+
+
+
+# 5. Flink 流处理 API
+
+![image-20210121093950764](./images/38.png)
+
+## 5.1 Environment
+
+### 5.1.1.**getExecutionEnvironment**
+
+创建一个执行环境，表示当前执行程序的上下文。 如果程序是独立调用的，则此方法返回本地执行环境；如果从命令行客户端调用程序以提交到集群，则此方法返回此集群的执行环境，也就是说，getExecutionEnvironment 会根据查询运行的方式决定返回什么样的运行环境，是最常用的一种创建执行环境的方式
+
+```java
+ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+```
+
+如果没有设置并行度，会以 flink-conf.yaml 中的配置为准，默认是 1
+
+![image-20210121102040858](./images/39.png)
+
+### 5.1.2 **createLocalEnvironment**
+
+返回本地执行环境，需要在调用时指定默认的并行度。
+
+```java
+LocalStreamEnvironment env = StreamExecutionEnvironment.createLocalEnvironment(1);
+```
+
+### 5.1.3 **createRemoteEnvironment**
+
+返回集群执行环境，将 Jar 提交到远程服务器。需要在调用时指定 JobManager的 IP 和端口号，并指定要在集群中运行的 Jar 包
+
+```java
+StreamExecutionEnvironment env = 
+StreamExecutionEnvironment.createRemoteEnvironment("jobmanage-hostname", 6123,"YOURPATH//WordCount.jar");
+```
+
+## 5.2 Source
+
+### 5.2.1 **从集合读取数据**
+
+```java
+public class SourceTest1_Collection {
+public static void main(String[] args) throws Exception{
+StreamExecutionEnvironment env = 
+StreamExecutionEnvironment.getExecutionEnvironment();
+// 1.Source:从集合读取数据
+DataStream<SensorReading> sensorDataStream = env.fromCollection(
+Arrays.asList(
+new SensorReading("sensor_1", 1547718199L, 35.8),
+new SensorReading("sensor_6", 1547718201L, 15.4),
+new SensorReading("sensor_7", 1547718202L, 6.7),
+new SensorReading("sensor_10", 1547718205L, 38.1) )
+);
+// 2.打印
+sensorDataStream.print();
+// 3.执行
+env.execute();
+} }
+```
+
+### 5.2.2 **从文件读取数据**
+
+```java
+DataStream<String> dataStream = env.readTextFile("YOUR_FILE_PATH ");
+```
+
+### 5.2.3 **以** **kafka** **消息队列的数据作为来源**
+
+需要引入 kafka 连接器的依赖：
+
+*pom.xml*
+
+```xml
+<!--
+https://mvnrepository.com/artifact/org.apache.flink/flink-connector-kafka-0.11 
+-->
+<dependency> 
+  <groupId>org.apache.flink</groupId>
+  <artifactId>flink-connector-kafka-0.11_2.12</artifactId> 
+  <version>1.10.1</version>
+</dependency>
+```
+
+具体代码如下：
+
+```java
+// kafka 配置项
+Properties properties = new Properties();
+properties.setProperty("bootstrap.servers", "localhost:9092");
+properties.setProperty("group.id", "consumer-group");
+properties.setProperty("key.deserializer", 
+"org.apache.kafka.common.serialization.StringDeserializer");
+properties.setProperty("value.deserializer", 
+"org.apache.kafka.common.serialization.StringDeserializer");
+properties.setProperty("auto.offset.reset", "latest");
+// 从 kafka 读取数据
+DataStream<String> dataStream = env.addSource( new 
+FlinkKafkaConsumer011<String>("sensor", new SimpleStringSchema(), properties));
+```
+
+### 5.2.4 **自定义** **Source**
+
+除了以上的 source 数据来源，我们还可以自定义 source。需要做的，只是传入一个 SourceFunction 就可以。具体调用如下
+
+```java
+DataStream<SensorReading> dataStream = env.addSource( new MySensor());
+```
+
+我们希望可以随机生成传感器数据，MySensorSource 具体的代码实现如下：
+
+```java
+public static class MySensor implements SourceFunction<SensorReading>{
+private boolean running = true;
+public void run(SourceContext<SensorReading> ctx) throws Exception {
+Random random = new Random();
+HashMap<String, Double> sensorTempMap = new HashMap<String, Double>();
+for( int i = 0; i < 10; i++ ){
+sensorTempMap.put("sensor_" + (i + 1), 60 + random.nextGaussian() * 20);
+}
+while (running) {
+  for( String sensorId: sensorTempMap.keySet() ){
+Double newTemp = sensorTempMap.get(sensorId) + random.nextGaussian();
+sensorTempMap.put(sensorId, newTemp);
+ctx.collect( new SensorReading(sensorId, System.currentTimeMillis(), 
+newTemp));
+}
+Thread.sleep(1000L);
+} }
+public void cancel() {
+this.running = false; } }
+```
+
+## 5.3 Transform
+
+### 5.3.1 **map**
+
+![image-20210121103239708](./images/40.png)
+
+```java
+DataStream<Integer> mapStram = dataStream.map(new MapFunction<String, Integer>() {
+public Integer map(String value) throws Exception {
+return value.length();
+}
+});
+```
+
+### 5.3.2 **flatMap**
+
+```java
+DataStream<String> flatMapStream = dataStream.flatMap(new FlatMapFunction<String, 
+String>() {
+public void flatMap(String value, Collector<String> out) throws Exception {
+String[] fields = value.split(","); 
+for( String field: fields )
+out.collect(field);
+  }
+});
+```
+
+### 5.3.3  **Filter**
+
+![image-20210121104629729](./images/41.png)
+
+```java
+DataStream<Interger> filterStream = dataStream.filter(new FilterFunction<String>() 
+{
+public boolean filter(String value) throws Exception {
+return value == 1; }
+});
+```
+
+### 5.3.4  **KeyBy**
+
+![image-20210121104708159](./images/42.png)
+
+**DataStream** **→** **KeyedStream**：逻辑地将一个流拆分成不相交的分区，每个分区包含具有相同 key 的元素，在内部以 hash 的形式实现的
+
+### 5.3.5 滚动聚合算子（Rolling Aggregation）
+
+这些算子可以针对 KeyedStream 的每一个支流做聚合
+
++ sum()
++ min()
++ max()
++ minBy()
++ maxBy()
+
+### 5.3.6 **Reduce**
+
+**KeyedStream** **→** **DataStream**：一个分组数据流的聚合操作，合并当前的元素和上次聚合的结果，产生一个新的值，返回的流中包含每一次聚合的结果，而不是只返回最后一次聚合的最终结果
+
+```java
+DataStream<String> inputStream = env.readTextFile("sensor.txt");
+// 转换成 SensorReading 类型
+DataStream<SensorReading> dataStream = inputStream.map(new 
+MapFunction<String, SensorReading>() {
+public SensorReading map(String value) throws Exception {
+String[] fileds = value.split(",");
+return new SensorReading(fileds[0], new Long(fileds[1]), new 
+Double(fileds[2]));
+}
+});
+// 分组
+KeyedStream<SensorReading, Tuple> keyedStream = dataStream.keyBy("id");
+// reduce 聚合，取最小的温度值，并输出当前的时间戳
+DataStream<SensorReading> reduceStream = keyedStream.reduce(new 
+ReduceFunction<SensorReading>() {
+@Override
+public SensorReading reduce(SensorReading value1, SensorReading value2) 
+throws Exception {
+return new SensorReading(
+value1.getId(),
+value2.getTimestamp(),
+Math.min(value1.getTemperature(), value2.getTemperature()));
+}
+});
+```
+
+### 5.3.7 **Split** **和** **Select**
+
+**Split**
+
+![image-20210121105000895](./images/43.png)
+
+**DataStream** **→** **SplitStream**：根据某些特征把一个 DataStream 拆分成两个或者多个 DataStream
+
+**Select**
+
+![image-20210121105043100](./images/44.png)
+
+SplitStream→DataStream：从一个 SplitStream 中获取一个或者多个DataStream。
+
+需求：传感器数据按照温度高低（以 30 度为界），拆分成两个流。
+
+```java
+SplitStream<SensorReading> splitStream = dataStream.split(new 
+OutputSelector<SensorReading>() {
+@Override
+public Iterable<String> select(SensorReading value) {
+return (value.getTemperature() > 30) ? Collections.singletonList("high") : 
+Collections.singletonList("low");
+}
+});
+DataStream<SensorReading> highTempStream = splitStream.select("high");
+DataStream<SensorReading> lowTempStream = splitStream.select("low");
+DataStream<SensorReading> allTempStream = splitStream.select("high", "low");
+```
+
+### 5.3.8  **Connect** **和** **CoMap**
+
+![image-20210121105227029](./images/45.png)
+
+**DataStream,DataStream** **→** **ConnectedStreams**：连接两个保持他们类型的数据流，两个数据流被 Connect 之后，只是被放在了一个同一个流中，内部依然保持各自的数据和形式不发生任何变化，两个流相互独立。
+
+**CoMap,CoFlatMap**
+
+![image-20210121105336419](./images/46.png)
+
+**ConnectedStreams → DataStream**：作用于 ConnectedStreams 上，功能与 map和 flatMap 一样，对 ConnectedStreams 中的每一个 Stream 分别进行 map 和 flatMap处理。
+
+```java
+// 合流 connect
+DataStream<Tuple2<String, Double>> warningStream = highTempStream.map(new 
+MapFunction<SensorReading, Tuple2<String, Double>>() {
+@Override
+  public Tuple2<String, Double> map(SensorReading value) throws Exception {
+return new Tuple2<>(value.getId(), value.getTemperature());
+}
+});
+ConnectedStreams<Tuple2<String, Double>, SensorReading> connectedStreams = 
+warningStream.connect(lowTempStream);
+DataStream<Object> resultStream = connectedStreams.map(new 
+CoMapFunction<Tuple2<String,Double>, SensorReading, Object>() {
+@Override
+public Object map1(Tuple2<String, Double> value) throws Exception {
+return new Tuple3<>(value.f0, value.f1, "warning");
+}
+@Override
+public Object map2(SensorReading value) throws Exception {
+return new Tuple2<>(value.getId(), "healthy");
+}
+});
+```
+
+### 5.3.9 **Union**
+
+![image-20210121105444919](./images/47.png)
+
+**DataStream** **→** **DataStream**：对两个或者两个以上的 DataStream 进行 union 操作，产生一个包含所有 DataStream 元素的新 DataStream。
+
+```java
+DataStream<SensorReading> unionStream = highTempStream.union(lowTempStream);
+```
+
+**Connect** **与** **Union** **区别：**
+
+1.  Union 之前两个流的类型必须是一样，Connect 可以不一样，在之后的 coMap中再去调整成为一样的
+
+2.  Connect 只能操作两个流，Union 可以操作多个
+
+   
+
+## 5.4 支持的数据类型
+
+​		Flink 流应用程序处理的是以数据对象表示的事件流。所以在 Flink 内部，我们需要能够处理这些对象。它们需要被序列化和反序列化，以便通过网络传送它们；或者从状态后端、检查点和保存点读取它们。为了有效地做到这一点，Flink 需要明确知道应用程序所处理的数据类型。Flink 使用类型信息的概念来表示数据类型，并为每个数据类型生成特定的序列化器、反序列化器和比较器。
+
+​		Flink 还具有一个类型提取系统，该系统分析函数的输入和返回类型，以自动获取类型信息，从而获得序列化器和反序列化器。但是，在某些情况下，例如 lambda函数或泛型类型，需要显式地提供类型信息，才能使应用程序正常工作或提高其性能。
+
+Flink 支持 Java 和 Scala 中所有常见数据类型。使用最广泛的类型有以下几种   
+
+### 5.4.1 **基础数据类型**
+
+Flink 支持所有的 Java 和 Scala 基础数据类型，Int, Double, Long, String, …
+
+```java
+DataStream<Integer> numberStream = env.fromElements(1, 2, 3, 4);
+numberStream.map(data -> data * 2);
+```
+
+### 5.4.2 **Java** **和** **Scala** 元组（Tuples）
+
+```java
+DataStream<Tuple2<String, Integer>> personStream = env.fromElements(
+new Tuple2("Adam", 17),
+new Tuple2("Sarah", 23) );
+personStream.filter(p -> p.f1 > 18);
+```
+
+### 5.4.3 **Scala** 样例类（case classes）
+
+```java
+case class Person(name: String, age: Int)
+val persons: DataStream[Person] = env.fromElements(
+Person("Adam", 17),
+Person("Sarah", 23) )
+  persons.filter(p => p.age > 18)
+```
+
+### 5.4.4 **Java** 简单对象（POJOs）
+
+```java
+public class Person {
+public String name;
+public int age;
+public Person() {}
+public Person(String name, int age) { 
+this.name = name; 
+this.age = age; 
+} }
+DataStream<Person> persons = env.fromElements( 
+new Person("Alex", 42), 
+new Person("Wendy", 23));
+```
+
+### 5.4.5 其它（Arrays, Lists, Maps, Enums,等等）
+
+Flink 对 Java 和 Scala 中的一些特殊目的的类型也都是支持的，比如 Java 的ArrayList，HashMap，Enum 等等
+
+## 5.5 实现 UDF 函数——更细粒度的控制流
+
+### 5.5.1 函数类（Function Classes）
+
+Flink 暴露了所有 udf 函数的接口(实现方式为接口或者抽象类)。例如MapFunction, FilterFunction, ProcessFunction 等
+
+下面例子实现了 FilterFunction 接口：
+
+```java
+DataStream<String> flinkTweets = tweets.filter(new FlinkFilter());
+public static class FlinkFilter implements FilterFunction<String> {
+@Override
+public boolean filter(String value) throws Exception {
+return value.contains("flink");
+  } 
+}
+```
+
+还可以将函数实现成匿名类
+
+```java
+DataStream<String> flinkTweets = tweets.filter(new FilterFunction<String>() {
+@Override
+public boolean filter(String value) throws Exception {
+return value.contains("flink");
+}
+});
+```
+
+我们 filter 的字符串"flink"还可以当作参数传进去。
+
+```java
+DataStream<String> tweets = env.readTextFile("INPUT_FILE ");
+DataStream<String> flinkTweets = tweets.filter(new KeyWordFilter("flink"));
+public static class KeyWordFilter implements FilterFunction<String> {
+private String keyWord;
+KeyWordFilter(String keyWord) { this.keyWord = keyWord; }
+@Override
+public boolean filter(String value) throws Exception {
+return value.contains(this.keyWord);
+} }
+```
+
+### 5.5.2 匿名函数（Lambda Functions）
+
+```java
+DataStream<String> tweets = env.readTextFile("INPUT_FILE");
+DataStream<String> flinkTweets = tweets.filter( tweet -> tweet.contains("flink") );
+```
+
+### 5.5.3 富函数（Rich Functions）
+
+“富函数”是 DataStream API 提供的一个函数类的接口，所有 Flink 函数类都有其 Rich 版本。它与常规函数的不同在于，可以获取运行环境的上下文，并拥有一些生命周期方法，所以可以实现更复杂的功能
+
++ RichMapFunction
++ RichFlatMapFunction
++ RichFilterFunction
++ ...
+
+Rich Function 有一个生命周期的概念。典型的生命周期方法有：
+
++ open()方法是 rich function 的初始化方法，当一个算子例如 map 或者 filter被调用之前 open()会被调用。
++ close()方法是生命周期中的最后一个调用的方法，做一些清理工作
++ getRuntimeContext()方法提供了函数的 RuntimeContext 的一些信息，例如函数执行的并行度，任务的名字，以及 state 状态
+
+```java
+public static class MyMapFunction extends RichMapFunction<SensorReading, 
+Tuple2<Integer, String>> {
+@Override
+public Tuple2<Integer, String> map(SensorReading value) throws Exception {
+return new Tuple2<>(getRuntimeContext().getIndexOfThisSubtask(), 
+value.getId());
+}
+@Override
+public void open(Configuration parameters) throws Exception {
+System.out.println("my map open");
+// 以下可以做一些初始化工作，例如建立一个和 HDFS 的连接
+}
+@Override
+public void close() throws Exception {
+System.out.println("my map close");
+// 以下做一些清理工作，例如断开和 HDFS 的连接
+} }
+```
+
+## 5.6 Sink
+
+Flink 没有类似于 spark 中 foreach 方法，让用户进行迭代的操作。虽有对外的输出操作都要利用 Sink 完成。最后通过类似如下方式完成整个任务最终输出操作。
+
+```java
+stream.addSink(new MySink(xxxx))
+```
+
+官方提供了一部分的框架的 sink。除此以外，需要用户自定义实现 sink
+
+![image-20210121111240207](./images/48.png)
+
+![image-20210121111302147](./images/49.png)
+
+### 5.6.1  **Kafka**
+
+pom.xml
+
+```xml
+<!--
+https://mvnrepository.com/artifact/org.apache.flink/flink-connector-kafka-0.11 
+--><dependency> 
+  <groupId>org.apache.flink</groupId> 
+  <artifactId>flink-connector-kafka-0.11_2.12</artifactId>
+  <version>1.10.1</version>
+</dependency>
+
+```
+
+```java
+dataStream.addSink(new FlinkKafkaProducer011[String]("localhost:9092", 
+"test", new SimpleStringSchema()))
+```
+
+### 5.6.2 **Redis**
+
+pom.xml
+
+```xml
+<!-- https://mvnrepository.com/artifact/org.apache.bahir/flink-connector-redis 
+--><dependency> 
+  <groupId>org.apache.bahir</groupId> 
+  <artifactId>flink-connector-redis_2.11</artifactId> 
+  <version>1.0</version>
+</dependency>
+```
+
+定义一个 redis 的 mapper 类，用于定义保存到 redis 时调用的命令：
+
+```java
+public static class MyRedisMapper implements RedisMapper<SensorReading>{
+// 保存到 redis 的命令，存成哈希表
+public RedisCommandDescription getCommandDescription() {
+return new RedisCommandDescription(RedisCommand.HSET, "sensor_tempe");
+}
+public String getKeyFromData(SensorReading data) {
+return data.getId();
+}
+public String getValueFromData(SensorReading data) {
+return data.getTemperature().toString();
+} }
+```
+
+在主函数中调用
+
+```java
+FlinkJedisPoolConfig config = new FlinkJedisPoolConfig.Builder()
+.setHost("localhost")
+.setPort(6379)
+.build();
+dataStream.addSink( new RedisSink<SensorReading>(config, new MyRedisMapper()) );
+```
+
+### 5.6.3 **Elasticsearch** 
+
+pom.xml
+
+```xml
+<dependency>
+  <groupId>org.apache.flink</groupId> 
+  <artifactId>flink-connector-elasticsearch6_2.12</artifactId>
+  <version>1.10.1</version>
+</dependency>
+```
+
+在主函数中调用
+
+```java
+// es 的 httpHosts 配置
+ArrayList<HttpHost> httpHosts = new ArrayList<>();
+httpHosts.add(new HttpHost("localhost", 9200));
+dataStream.addSink( new ElasticsearchSink.Builder<SensorReading>(httpHosts, new 
+MyEsSinkFunction()).build());
+```
+
+ElasitcsearchSinkFunction 的实现
+
+```java
+public static class MyEsSinkFunction implements 
+ElasticsearchSinkFunction<SensorReading>{
+@Override
+public void process(SensorReading element, RuntimeContext ctx, RequestIndexer 
+indexer) {
+HashMap<String, String> dataSource = new HashMap<>();
+dataSource.put("id", element.getId());
+dataSource.put("ts", element.getTimestamp().toString());
+dataSource.put("temp", element.getTemperature().toString());
+IndexRequest indexRequest = Requests.indexRequest()
+.index("sensor")
+.type("readingData")
+.source(dataSource);
+indexer.add(indexRequest);
+} }
+```
+
+### 5.6.4 **JDBC** **自定义** **sink**
+
+```xml
+<!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java --> <dependency> <groupId>mysql</groupId> 
+  <artifactId>mysql-connector-java</artifactId>
+  <version>5.1.44</version>
+</dependency>
+```
+
+添加 MyJdbcSink
+
+```java
+public static class MyJdbcSink extends RichSinkFunction<SensorReading> {
+Connection conn = null;
+PreparedStatement insertStmt = null;
+PreparedStatement updateStmt = null;
+// open 主要是创建连接
+@Override
+public void open(Configuration parameters) throws Exception {
+conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/test", 
+"root", "123456");
+// 创建预编译器，有占位符，可传入参数
+insertStmt = conn.prepareStatement("INSERT INTO sensor_temp (id, temp) VALUES 
+(?, ?)");
+updateStmt = conn.prepareStatement("UPDATE sensor_temp SET temp = ? WHERE id 
+= ?");
+}
+// 调用连接，执行 sql
+@Override
+public void invoke(SensorReading value, Context context) throws Exception {
+// 执行更新语句，注意不要留 super
+updateStmt.setDouble(1, value.getTemperature());
+updateStmt.setString(2, value.getId());
+updateStmt.execute();
+// 如果刚才 update 语句没有更新，那么插入
+if (updateStmt.getUpdateCount() == 0) {
+insertStmt.setString(1, value.getId());
+  insertStmt.setDouble(2, value.getTemperature());
+insertStmt.execute();
+} }
+@Override
+public void close() throws Exception {
+insertStmt.close();
+updateStmt.close();
+conn.close();
+} }
+```
+
+在 main 方法中增加，把明细保存到 mysql 中
+
+```java
+dataStream.addSink(new MyJdbcSink())
+```
 
 
 
@@ -431,20 +1174,4 @@ http://*{JobManagerHost:Port}*/api/v1/namespaces/default/services/flink-jobmanag
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+   
