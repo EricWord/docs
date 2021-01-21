@@ -1166,11 +1166,19 @@ conn.close();
 dataStream.addSink(new MyJdbcSink())
 ```
 
+https://www.bilibili.com/video/BV1qy4y1q728?p=46
 
 
 
 
 
+# 6. Flink 中的 Window
+
+## 6.1 Window
+
+### 6.1.1 **Window** **概述**
+
+streaming 流式计算是一种被设计用于处理无限数据集的数据处理引擎，而无限数据集是指一种不断增长的本质上无限的数据集，而 window 是一种切割无限数据为有限块进行处理**的手段。
 
 
 
