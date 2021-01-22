@@ -1231,7 +1231,106 @@ Window 可以分成两类
 
 ## 6.2 Window API
 
+### 6.2.1 **TimeWindow**
 
+TimeWindow 是将指定时间范围内的所有数据组成一个 window，一次对一个window 里面的所有数据进行计算
+
+1. 滚动窗口
+
+   Flink 默认的时间窗口根据 Processing Time 进行窗口的划分，将 Flink 获取到的数据根据进入 Flink 的时间划分到不同的窗口中
+
+   ```java
+   DataStream<Tuple2<String, Double>> minTempPerWindowStream = dataStream
+   .map(new MapFunction<SensorReading, Tuple2<String, Double>>() {
+   @Override
+   public Tuple2<String, Double> map(SensorReading value) throws 
+   Exception {
+   return new Tuple2<>(value.getId(), value.getTemperature());
+   }
+   })
+   .keyBy(data -> data.f0) 
+   .timeWindow( Time.seconds(15) )
+   .minBy(1);
+   ```
+
+   时间间隔可以通过 Time.milliseconds(x)，Time.seconds(x)，Time.minutes(x)等其中的一个来指定
+
+2. 滑动窗口（SlidingEventTimeWindows）
+
+   滑动窗口和滚动窗口的函数名是完全一致的，只是在传参数时需要传入两个参数，一个是 window_size，一个是 sliding_size
+
+   下面代码中的 sliding_size 设置为了 5s，也就是说，每 5s 就计算输出结果一次，每一次计算的 window 范围是 15s 内的所有元素。
+
+   ```java
+   DataStream<SensorReading> minTempPerWindowStream = dataStream
+   .keyBy(SensorReading::getId) 
+   .timeWindow( Time.seconds(15), Time.seconds(5) )
+   .minBy("temperature");
+   ```
+
+   时间间隔可以通过 Time.milliseconds(x)，Time.seconds(x)，Time.minutes(x)等其中的一个来指定
+
+
+
+### 6.2.2 **CountWindow**
+
+CountWindow 根据窗口中相同 key 元素的数量来触发执行，执行时只计算元素数量达到窗口大小的 key 对应的结果。
+
+注意：CountWindow 的 window_size 指的是相同 Key 的元素的个数，不是输入的所有元素的总数
+
+1. 滚动窗口
+
+   默认的 CountWindow 是一个滚动窗口，只需要指定窗口大小即可，当元素数量达到窗口大小时，就会触发窗口的执行
+
+   ```java
+   DataStream<SensorReading> minTempPerWindowStream = dataStream
+   .keyBy(SensorReading::getId)
+   .countWindow( 5 )
+   .minBy("temperature");
+   ```
+
+2. 滑动窗口
+
+   滑动窗口和滚动窗口的函数名是完全一致的，只是在传参数时需要传入两个参数，一个是 window_size，一个是 sliding_size。
+
+   下面代码中的 sliding_size 设置为了 2，也就是说，每收到两个相同 key 的数据就计算一次，每一次计算的 window 范围是 10 个元素
+
+   ```java
+   DataStream<SensorReading> minTempPerWindowStream = dataStream
+   .keyBy(SensorReading::getId)
+   .countWindow( 10, 2 )
+   .minBy("temperature");
+   ```
+
+   ### 6.2.3 **window function**
+
+   window function 定义了要对窗口中收集的数据做的计算操作，主要可以分为两类：
+
+   + 增量聚合函数（incremental aggregation functions）
+
+     每条数据到来就进行计算，保持一个简单的状态。典型的增量聚合函数有ReduceFunction, AggregateFunction
+
+   + 全窗口函数（full window functions）
+
+     先把窗口所有数据收集起来，等到计算的时候会遍历所有数据。ProcessWindowFunction 就是一个全窗口函数。
+
+   ### 6.2.4 **其它可选** **API**
+
+   + .trigger() —— 触发器
+
+     定义 window 什么时候关闭，触发计算并输出结果
+
+   + .evitor() —— 移除器
+
+     定义移除某些数据的逻辑
+
+   + .allowedLateness() —— 允许处理迟到的数据
+
+   + .sideOutputLateData() —— 将迟到的数据放入侧输出流
+
+   + .getSideOutput() —— 获取侧输出流
+
+   ![image-20210122101949929](./images/53.png)
 
 
 
