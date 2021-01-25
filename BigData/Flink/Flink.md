@@ -1733,6 +1733,134 @@ env.execute()
 
 
 
+# 9. ProcessFunction API（底层 API）
+
+我们之前学习的**转换算子**是无法访问事件的时间戳信息和水位线信息的。而这在一些应用场景下，极为重要。例如 MapFunction 这样的 map 转换算子就无法访问时间戳或者当前事件的事件时间
+
+基于此，DataStream API 提供了一系列的 Low-Level 转换算子。可以访问时间戳、watermark以及注册定时事件**。还可以输出**特定的一些事件，例如超时事件等。Process Function 用来构建事件驱动的应用以及实现自定义的业务逻辑(使用之前的window 函数和转换算子无法实现)。例如，Flink SQL 就是使用 Process Function 实现的。
+
+Flink 提供了 8 个 Process Function： 
+
++ ProcessFunction
++ KeyedProcessFunction
++ CoProcessFunction
++ ProcessJoinFunction
++ BroadcastProcessFunction
++ KeyedBroadcastProcessFunction
++ ProcessWindowFunction
++ ProcessAllWindowFunction
+
+## 9.1 KeyedProcessFunction
+
+KeyedProcessFunction 用来操作 KeyedStream。KeyedProcessFunction 会处理流的每一个元素，输出为 0 个、1 个或者多个元素。所有的 Process Function 都继承自RichFunction 接口，所以都有 open()、close()和 getRuntimeContext()等方法。而KeyedProcessFunction<K, I, O>还额外提供了两个方法:
+
++ processElement(I value, Context ctx, Collector<O> out), 流中的每一个元素都会调用这个方法，调用结果将会放在 Collector 数据类型中输出。Context 可以访问元素的时间戳，元素的 key以及 TimerService 时间服务。Context 还可以将结果输出到别的流(side outputs)
++ onTimer(long timestamp, OnTimerContext ctx, Collector<O> out) 是一个回调函数。当之前注册的定时器触发时调用。参数 timestamp 为定时器所设定的触发的时间戳。Collector 为输出结果的集合。OnTimerContext 和processElement 的 Context 参数一样，提供了上下文的一些信息，例如定时器触发的时间信息(事件时间或者处理时间)。
+
+## 9.2  TimerService 和 定时器（Timers）
+
+Context 和 OnTimerContext 所持有的 TimerService 对象拥有以下方法: 
+
++ long currentProcessingTime() 返回当前处理时间
++ long currentWatermark() 返回当前 watermark 的时间戳
++ void registerProcessingTimeTimer(long timestamp) 会注册当前 key 的processing time 的定时器。当 processing time 到达定时时间时，触发 timer。
++ void registerEventTimeTimer(long timestamp) 会注册当前 key 的 event time 定时器。当水位线大于等于定时器注册的时间时，触发定时器执行回调函数。
++ void deleteProcessingTimeTimer(long timestamp) 删除之前注册处理时间定时器。如果没有这个时间戳的定时器，则不执行。
++ void deleteEventTimeTimer(long timestamp) 删除之前注册的事件时间定时器，如果没有此时间戳的定时器，则不执行。
+
+当定时器 timer 触发时，会执行回调函数 onTimer()。注意定时器 timer 只能在keyed streams 上面使用
+
+下面举个例子说明 KeyedProcessFunction 如何操作 KeyedStream
+
+需求：监控温度传感器的温度值，如果温度值在 10 秒钟之内(processing time)连续上升，则报警
+
+```java
+DataStream<String> warningStream = dataStream.keyBy(SensorReading::getId)
+.process( new TempIncreaseWarning(10) );
+```
+
+看一下 TempIncreaseWarning 如何实现, 程序中使用了 ValueState 状态变量来保存上次的温度值和定时器时间戳
+
+```java
+public static class TempIncreaseWarning extends KeyedProcessFunction<String, 
+SensorReading, String>{
+private Integer interval;
+public TempIncreaseWarning(Integer interval) {
+this.interval = interval;
+}
+// 声明状态，保存上次的温度值、当前定时器时间戳
+private ValueState<Double> lastTempState;
+private ValueState<Long> timerTsState;
+@Override
+public void open(Configuration parameters) throws Exception {
+lastTempState = getRuntimeContext().getState(new 
+ValueStateDescriptor<Double>("last-temp", Double.class, Double.MIN_VALUE));
+timerTsState = getRuntimeContext().getState(new 
+ValueStateDescriptor<Long>("timer-ts", Long.class));
+}
+@Override
+public void processElement(SensorReading value, Context ctx, Collector<String> out) 
+throws Exception {
+// 取出状态
+Double lastTemp = lastTempState.value();
+Long timerTs = timerTsState.value();
+// 更新温度状态
+lastTempState.update(value.getTemperature());
+if( value.getTemperature() > lastTemp && timerTs == null ){
+long ts = ctx.timerService().currentProcessingTime() + interval * 1000L;
+ctx.timerService().registerProcessingTimeTimer(ts);
+timerTsState.update(ts); 
+}
+else if( value.getTemperature() < lastTemp && timerTs != null){
+ctx.timerService().deleteProcessingTimeTimer(timerTs);
+timerTsState.clear();
+} }
+  @Override
+public void onTimer(long timestamp, OnTimerContext ctx, Collector<String> out) 
+throws Exception {
+out.collect( "传感器" + ctx.getCurrentKey() + "的温度连续" + interval + "秒上升
+" );
+// 清空 timer 状态
+timerTsState.clear();
+} }
+```
+
+## 9.3 侧输出流（SideOutput）
+
+大部分的 DataStream API 的算子的输出是单一输出，也就是某种数据类型的流。除了 split 算子，可以将一条流分成多条流，这些流的数据类型也都相同。process function 的 side outputs 功能可以产生多条流，并且这些流的数据类型可以不一样。一个 side output 可以定义为 OutputTag[X]对象，X 是输出流的数据类型。process function 可以通过 Context 对象发射一个事件到一个或者多个 side outputs。
+
+下面是一个示例程序，用来监控传感器温度值，将温度值低于 30 度的数据输出到 side output
+
+```java
+final OutputTag<SensorReading> lowTempTag = new OutputTag<SensorReading>("lowTemp"){};
+SingleOutputStreamOperator<SensorReading> highTempStream = dataStream.process(new 
+ProcessFunction<SensorReading, SensorReading>() {
+@Override
+public void processElement(SensorReading value, Context ctx, 
+Collector<SensorReading> out) throws Exception {
+if( value.getTemperature() < 30 )
+ctx.output(lowTempTag, value);
+else
+out.collect(value);
+}
+});
+DataStream<SensorReading> lowTempStream = highTempStream.getSideOutput(lowTempTag);
+highTempStream.print("high");
+lowTempStream.print("low");
+```
+
+## 9.4  CoProcessFunction
+
+对于两条输入流，DataStream API 提供了 CoProcessFunction 这样的 low-level操作。CoProcessFunction 提供了操作每一个输入流的方法: processElement1()和processElement2()。
+
+类似于 ProcessFunction，这两种方法都通过 Context 对象来调用。这个 Context对象可以访问事件数据，定时器时间戳，TimerService，以及 side outputs。CoProcessFunction 也提供了 onTimer()回调函数
+
+
+
+
+
+
+
 
 
 
