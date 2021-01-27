@@ -411,3 +411,374 @@ jps 查看进程
 
 ![image-20210127111329205](./images/4.png)
 
+# 3. **Azkaban** **实战**
+
+Azkaban 内置的任务类型支持 command、java
+
+## 3.1 **单一** **job** **案例**
+
+1. 创建 job 描述文件
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim first.job
+   #first.job
+   type=command
+   command=echo 'this is my first job'
+   ```
+
+2. 将 job 资源文件打包成 zip 文件
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ zip first.zip first.job
+   adding: first.job (deflated 15%)
+   [atguigu@hadoop102 jobs]$ ll
+   总用量 8
+   -rw-rw-r--. 1 atguigu atguigu 60 10 月 18 17:42 first.job 
+   -rw-rw-r--. 1 atguigu atguigu 219 10 月 18 17:43 first.zip
+   ```
+
+     注意：
+
+   目前，Azkaban 上传的工作流文件只支持 xxx.zip 文件。zip 应包含 xxx.job 运行作业所需的文件和任何文件（文件名后缀必须以.job 结尾，否则无法识别）。作业名称在项目中必须是唯一的。
+
+3. 通过 azkaban 的 web 管理平台创建 project 并上传 job 的 zip 包
+
+   首先创建 project
+
+   ![image-20210127151955362](./images/5.png)
+
+   上传 zip 包
+
+   ![image-20210127152045630](./images/6.png)
+
+4. 启动执行该 job
+
+   ![image-20210127152109574](./images/7.png)
+
+   点击执行工作流
+
+   ![image-20210127152136626](./images/8.png)
+
+   点击继续
+
+   ![image-20210127152200881](./images/9.png)
+
+5. Job 执行成功
+
+   ![image-20210127152221481](./images/10.png)
+
+6. 点击查看 job 日志
+
+   ![image-20210127152249359](./images/11.png)
+
+
+
+## 3.2 **邮件通知配置案例**
+
+1. 修改配置文件
+
+   修改 server 的 conf 下的 azkaban.properties 文件
+
+   ![image-20210127152357181](./images/12.png)
+
+2. 在网页上进行配置
+
+   ![image-20210127152419133](./images/13.png)
+
+   ![image-20210127152441913](./images/14.png)
+
+## 3.3 **多** **job** **工作流案例**
+
+1. 创建有依赖关系的多个 job 描述
+
+   第一个 job：start.job
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim start.job
+   ```
+
+   ```bash
+   #start.job
+   type=command
+   command=touch /opt/module/kangkang.txt
+   ```
+
+   第二个 job：step1.job 依赖 start.job
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim step1.job
+   #step1.job
+   type=command
+   dependencies=start
+   command=echo "this is step1 job"
+   ```
+
+   第三个 job：step2.job 依赖 start.job
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim step2.job
+   #step2.job
+   type=command
+   dependencies=start
+   command=echo "this is step2 job"
+   ```
+
+   第四个 job：finish.job 依赖 step1.job 和 step2.job
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim finish.job
+   #finish.job
+   type=command
+   dependencies=step1,step2
+   command=echo "this is finish job"
+   ```
+
+2. 将所有 job 资源文件打到一个 zip 包中
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ zip jobs.zip start.job step1.job step2.job 
+   finish.job
+   updating: start.job (deflated 16%)
+   adding: step1.job (deflated 12%)
+   adding: step2.job (deflated 12%)
+   adding: finish.job (deflated 14%)
+   ```
+
+3. 在 azkaban 的 web 管理界面创建工程并上传 zip 包
+
+   ![image-20210127153440908](./images/15.png)
+
+4. 启动工作流 flow
+
+   ![image-20210127153508899](./images/16.png)
+
+5. 查看结果
+
+   ![image-20210127153534435](./images/17.png)
+
+   思考：
+
+   将 student.txt 文件上传到 hdfs，根据所传文件创建外部表，再将表中查询到的结果写入到本地文件
+
+   
+
+## 3.4 **Java** **操作任务**
+
+使用 Azkaban 调度 java 程序
+
+1. 编写 java 程序
+
+   ```java
+   import java.io.IOException;
+   public class AzkabanTest {
+   public void run() throws IOException {
+   // 根据需求编写具体代码
+   FileOutputStream fos = new 
+   FileOutputStream("/opt/module/azkaban/output.txt");
+   fos.write("this is a java progress".getBytes());
+   fos.close();
+   }
+   public static void main(String[] args) throws IOException {
+   AzkabanTest azkabanTest = new AzkabanTest();
+   azkabanTest.run();
+   } }
+   ```
+
+2. 将 java 程序打成 jar 包，创建 lib 目录，将 jar 放入 lib 内
+
+   ```bash
+   [atguigu@hadoop102 azkaban]$ mkdir lib
+   [atguigu@hadoop102 azkaban]$ cd lib/
+   [atguigu@hadoop102 lib]$ ll
+   总用量 4 -rw-rw-r--. 1 atguigu atguigu 3355 10 月 18 20:55 azkaban-0.0.1-
+   SNAPSHOT.jar
+   ```
+
+3. 编写 job 文件
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim azkabanJava.job
+   #azkabanJava.job
+   type=javaprocess
+   java.class=com.atguigu.azkaban.AzkabanTest
+   classpath=/opt/module/azkaban/lib/*
+   ```
+
+4. 将 job 文件打成 zip 包
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ zip azkabanJava.zip azkabanJava.job 
+   adding: azkabanJava.job (deflated 19%)
+   ```
+
+5. 通过 azkaban 的 web 管理平台创建 project 并上传 job 压缩包，启动执行该 job
+
+   ![image-20210127154308436](./images/18.png)
+
+   ```bash
+   [atguigu@hadoop102 azkaban]$ pwd
+   /opt/module/azkaban
+   [atguigu@hadoop102 azkaban]$ ll
+   总用量 24
+   drwxrwxr-x. 2 atguigu atguigu 4096 10 月 17 17:14 azkaban-2.5.0
+   drwxrwxr-x. 10 atguigu atguigu 4096 10 月 18 17:17 executor
+   drwxrwxr-x. 2 atguigu atguigu 4096 10 月 18 20:35 jobs
+   drwxrwxr-x. 2 atguigu atguigu 4096 10 月 18 20:54 lib
+   -rw-rw-r--. 1 atguigu atguigu 23 10 月 18 20:55 output
+   drwxrwxr-x. 9 atguigu atguigu 4096 10 月 18 17:17 server
+   [atguigu@hadoop102 azkaban]$ cat output 
+   this is a java progress
+   ```
+
+
+## 3.5 **HDFS** **操作任务**
+
+1. 创建 job 描述文件
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim fs.job
+   #hdfs job
+   type=command
+   command=/opt/module/hadoop-2.7.2/bin/hadoop fs -mkdir /azkaban
+   ```
+
+2. 将 job 资源文件打包成 zip 文件
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ zip fs.zip fs.job 
+   adding: fs.job (deflated 12%)
+   ```
+
+3. 通过 azkaban 的 web 管理平台创建 project 并上传 job 压缩包
+
+4. 启动执行该 job
+
+5. 查看结果
+
+   ![image-20210127154531023](./images/19.png)
+
+   ![image-20210127154556252](./images/20.png)
+
+
+## 3.6  **MapReduce** **任务**
+
+MapReduce 任务依然可以使用 Azkaban 进行调度
+
+1. 创建 job 描述文件，及 mr 程序 jar 包
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim mapreduce.job
+   #mapreduce job
+   type=command
+   command=/opt/module/hadoop-2.7.2/bin/hadoop jar /opt/module/hadoop-
+   2.7.2/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar 
+   wordcount /wordcount/input /wordcount/output
+   ```
+
+2. 将所有 job 资源文件打到一个 zip 包中
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ zip mapreduce.zip mapreduce.job 
+   adding: mapreduce.job (deflated 43%)
+   ```
+
+   
+
+3. 在 azkaban 的 web 管理界面创建工程并上传 zip 包
+
+4. 启动 job
+
+5. 查看结果
+
+   ![image-20210127154746671](./images/21.png)
+
+   ![image-20210127154814264](./images/22.png)
+
+## 3.7 **Hive** **脚本任务**
+
+1. 创建 job 描述文件和 hive 脚本
+
+   （1）Hive 脚本：student.sql
+
+   ```bash
+   use default;
+   drop table student;
+   create table student(id int, name string)
+   row format delimited fields terminated by '\t';
+   load data local inpath '/opt/module/datas/student.txt' into table student;
+   insert overwrite local directory '/opt/module/datas/student'
+   row format delimited fields terminated by '\t'
+   select * from student;
+   ```
+
+   （2）Job 描述文件：hive.job
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ vim hive.job
+   #hive job
+   type=command
+   command=/opt/module/hive/bin/hive -f 
+   /opt/module/azkaban/jobs/student.sql
+   ```
+
+2. 将所有 job 资源文件打到一个 zip 包中
+
+   ```bash
+   [atguigu@hadoop102 jobs]$ zip hive.zip hive.job 
+   adding: hive.job (deflated 21%)
+   ```
+
+3. 在 azkaban 的 web 管理界面创建工程并上传 zip 包
+
+4. 启动 job
+
+5. 查看结果
+
+   ```bash
+   [atguigu@hadoop102 student]$ cat /opt/module/datas/student/000000_0 
+   1001 yangyang
+   1002 huihui
+   1003 banzhang
+   1004 pengpeng
+   ```
+
+   ![image-20210127155048404](./images/23.png)
+
+   
+
+
+
+   
+
+
+
+   
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
