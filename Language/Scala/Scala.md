@@ -47,9 +47,14 @@ var | val 变量名[:变量类型] = 变量值
 + 当左右两边有一方是字符串，做拼接运算    
 ### 2.4 数据类型
 + Scala 与Java有相同的数据类型，在Scala中数据类型都是对象，也就是说Scala没有Java中的原生类型
+
 + Scala数据类型分为两大类：AnyVal(值类型)和AnyRef(引用类型)，注意：不管是AnyVal还是AnyRef都是对象
+
 + Scala数据类型体系一览表  
-![数据类型体系一览表](./images/2-Scala数据类型一览表.png)
+  ![数据类型体系一览表](./images/2-Scala数据类型一览表.png)
+
+  ![image-20210216103440269](/Users/cuiguangsong/go/src/docs/Language/Scala/images/31.png)
+
 + Scala数据类型列表  
 ![Scala数据类型列表](./images/3-Scala数据类型列表.png)
 #### 2.4.1 整数类型
