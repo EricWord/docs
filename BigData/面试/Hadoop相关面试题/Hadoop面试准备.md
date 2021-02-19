@@ -711,7 +711,8 @@ progress是任务运行的比例（0.1-1）；
 
 ![image-20210219114758969](./images/8.png)
 
-secondaryNameNode的工作机制查一下
+1. 在hadoop1.x之前，由hdfs和mapreduce组成，hdfs负责存储，mapreduce负责计算和资源管理
+2. 在hadoop2.x之后，新增了yarn单独负责资源管理，让mr只负责计算，进行职能的解耦，提高了容错性。
 
 
 
@@ -719,7 +720,15 @@ secondaryNameNode的工作机制查一下
 
 ![image-20210219122731683](./images/9.png)
 
+![image-20210219192620332](./images/35.png)
 
+1.经过切片之后的数据进入map端，然后将数据处理。
+ 2.将数据拉取到环形缓冲区，大小默认为100M，当达到80%的时候，进行溢写到本地磁盘，剩下的20%进行继续拉取数据。
+ 3.在环形缓冲区将数据溢写时，对数据进行快速排序，及分区处理。
+ 4.经过上面处理后的数据合并为一个大的文件并进行归并排序，
+  5.当有一个maptask执行完毕后，reducetask启动。将归并排序后的数据拉取到reducetask任务中，此时的数据内部有序，外部是无序的。（因为每个maptask里进行了快速排序所以是内部有序，而拉取过来的数据是多个maptask的任务的数据所以是外部无序的）进行归并排序
+ 6.将相同key的value写成一个集合，方便后的重写Reduce方法的reduce端进行操作，因为方法里有个迭代器。
+ 7.reduce端将数据处理，再传出。
 
 # 7. Hadoop的垃圾回收机制
 
@@ -796,3 +805,73 @@ MR读取数据时将多个小文件当做一个文件，只启一个MapTask,提�
 
 
 # 15. NameNode线程数过少会报什么错误
+
+
+
+
+
+
+
+# 16. HDFS的组成结构和作用(100%)
+
+1. Namenode
+
+   1. 管理HDFS命名空间，存储文件的元数据，目录结构，管理数据块的映射和datanode节点
+
+   2. 处理客户端读写请求
+
+   3. 配置副本策略
+
+   4. namenode内存中存储的是两个东西，fsimage和edits
+
+    > 其中fsimage是 （元数据镜像文件）文件系统的目录树，NameNode内存中元数据序列化后形成的文件
+      >
+      > edits是对元数据进行追加操作，效率很高，每当元数据有更新或者添加元素时，修改内存中的元数据添加到Edits中去
+
+2. datanode
+
+   1. 存储数据块，包括数据本身，和数据块的信息（数据长度，校验和，时间戳）
+   2. 自动向namenode注册，并且周期性地向namenode返回自己地块信息
+   3. 心跳每三秒一个，返回结果会带有namenode 的命令，如果namenode在10分钟30秒内没有接收到datanode的心跳，那么认为该节点不可用了
+
+3. SecondaryNamenode
+
+   1. 专门用于Fsimage和edits的合并，减少namenode的压力，添加效率，并返回给Namenode 节点 fsimage.chkpoint,Namenode更名为fsimage
+   2. 请求和执行checkpoint
+   3. 在特殊情况可以进行namenode的恢复（一般不用）
+
+# 17. Yarn的组成
+
+（1）ResourceManager(RM)
+
+1. 处理客户端请求
+2. 监控NodeManger
+3. 启动或监控ApplicationMaster
+4. 资源的分配和调度
+
+（2）NodeManager
+
+1. 负责管理单个节点的资源
+2. 处理来自RM的命令
+3. 处理来自于ApplictionMaster命令
+
+（3）ApplicationMaster
+
+1. 负责数据的切分
+
+2. 为应用程序申请资源并分配给内部的任务
+
+3. 任务的监控和容错
+
+（4）container
+封装了某个节点上的多维度资源，如内存，cpu，磁盘，网络
+
+
+
+
+
+# 18. secondaryNameNode的工作机制
+
+定时定量的把集群中的 Edits 文件转化为 Fsimage 文件，来保证 NameNode 中数据的可靠性
+
+![image-20210219173047411](./images/34.png)
