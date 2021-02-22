@@ -876,3 +876,15 @@ NameNode默认线程池线程的数量为10
 定时定量的把集群中的 Edits 文件转化为 Fsimage 文件，来保证 NameNode 中数据的可靠性
 
 ![image-20210219173047411](./images/34.png)
+
+
+
+# 19. Hadoop端口号总结
+
+Hadoop 2.x 升级到Hadoop 3.x发生变更的端口
+
+![image-20210222103417207](./images/38.png)
+
+没有发生变更的常用端口号
+
+![image-20210222103711374](./images/39.png)
