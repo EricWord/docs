@@ -118,7 +118,13 @@ Spark 是一种基于内存的快速、通用、可扩展的大数据分析计�
 
 ## 5.2 Standalone模式
 
-Spark 的 Standalone 模式体现了经典的 master-slave 模式。
+独立模式，Spark 原生的简单集群管理器，自带完整的服务，可单独部署到一个集群中，无需依赖任何其他资源管理系统，使用 Standalone 可以很方便地搭建一个集群
+
+Standalone 集群有 2 个重要组成部分，分别是：
+
+1) Master(RM)：是一个进程，主要负责资源的调度和分配，并进行集群的监控等职责；
+
+2) Worker(NM)：是一个进程，一个 Worker 运行在集群中的一台服务器上，主要负责两个职责，一个是用自己的内存存储 RDD 的某个或某些 partition；另一个是启动其他进程和线程（Executor），对 RDD 上的 partition 进行并行的处理和计算
 
 提交应用示例
 
@@ -128,15 +134,19 @@ Spark 的 Standalone 模式体现了经典的 master-slave 模式。
 
 ## 5.3 Yarn模式
 
-独立部署（Standalone）模式由 Spark 自身提供计算资源，无需其他框架提供资源。这种方式降低了和其他第三方资源框架的耦合性，独立性非常强。但是你也要记住，Spark 主要是计算框架，而不是资源调度框架，所以本身提供的资源调度并不是它的强项，所以还是和其他专业的资源调度框架集成会更靠谱一些。所以接下来我们来学习在强大的 Yarn 环境下 Spark 是如何工作的（其实是因为在国内工作中，Yarn 使用的非常多）。
+统一的资源管理机制，在上面可以运行多套计算框架，如 MR、Storm等。根据 Driver 在集群中的位置不同，分为 yarn client（集群外）和 yarn cluster（集群内部）
 
 提交应用示例
 
 ![image-20210223154854411](./images/3.png)
 
-## 5.4 **K8S & Mesos** **模式**
+## 5.4 **K8S **
 
-国内使用不多
+容器式部署环境。
+
+##  Mesos模式
+
+一个强大的分布式资源管理框架，它允许多种不同的框架部署在其上，包括 Yarn
 
 ## 5.5 Windows模式
 
@@ -248,25 +258,33 @@ Map 算子因为类似于串行操作，所以性能比较低，而是 mapPartit
 
 
 
-# 11. zip的几个问题(待解决)
+# 11. zip的几个问题
 
-如果两个 RDD 数据类型不一致怎么办？
+1. 如果两个 RDD 数据类型不一致怎么办？
 
-如果两个 RDD 数据分区不一致怎么办？
+   拉链操作两个数据源的类型可以不一致
 
-如果两个 RDD 分区数据数量不一致怎么办？
+2. 如果两个 RDD 数据分区不一致怎么办？
+
+   两个数据源的分区数要保持一致，否则报 Can't zip RDDs with unequal numbers of partitions
+
+3. 如果两个 RDD 分区数据数量不一致怎么办？
+
+   两个数据源的每个分区中的数据数量要保持一致，否则报 Can only zip RDDs with same number of elements in each partition
 
 
 
 
 
-# 12. **partitionBy**的几个问题(待解决)
+# 12. **partitionBy**的几个问题
 
-如果重分区的分区器和当前 RDD 的分区器一样怎么办？
+1. 如果重分区的分区器和当前 RDD 的分区器一样怎么办？
 
-Spark 还有其他分区器吗？
+   如果相同，则不再进行分区划分
 
-如果想按照自己的方法进行数据分区怎么办
+2. 如果想按照自己的方法进行数据分区怎么办
+
+   自定义分区器
 
 
 
@@ -292,15 +310,11 @@ CombineByKey:当计算时，发现数据结构不满足要求时，可以让第�
 
 
 
-# 15. join操作如果 key 存在不相等的情况会是什么结果(待解决)
+# 15. join操作如果 key 存在不相等的情况会是什么结果
 
-
-
-
-
-
-
-
+join:两个不同数据源的数据，相同key的value会连接在一起，形成元组
+如果两个数据源中key没有匹配上，那么数据不会出现在结果中
+如果两个数据源中key有多个相同的，会依次匹配，可能会出现笛卡尔乘积，数据量会呈现几何性增长会导致性能降低
 
 # 16. RDD转换算子有哪些？
 
@@ -572,6 +586,259 @@ Spark 目前支持 Hash 分区和 Range 分区，和用户自定义分区。Hash
 # 30. 广播变量的实现原理
 
 广播变量用来高效分发较大的对象。向所有工作节点发送一个较大的只读值，以供一个或多个 Spark 操作使用。比如，如果你的应用需要向所有节点发送一个较大的只读查询表，广播变量用起来都很顺手。在多个并行操作中使用同一个变量，但是 Spark 会为每个任务分别发送
+
+# 31. SparkSQL是什么
+
+Spark SQL 是 Spark 用于结构化数据(structured data)处理的 Spark 模块。
+
+# 32. **DataFrame** **是什么**
+
+DataFrame 是一种以 RDD 为基础的分布式数据集，类似于传统数据库中的二维表格。DataFrame 与 RDD 的主要区别在于，前者带有 schema 元信息，即 DataFrame所表示的二维表数据集的每一列都带有名称和类型
+
+# 33. **DataSet** **是什么**
+
+DataSet 是分布式数据集合。DataSet 是 Spark 1.6 中添加的一个新抽象，是 DataFrame的一个扩展。它提供了 RDD 的优势（强类型，使用强大的 lambda 函数的能力）以及 Spark SQL 优化执行引擎的优点。DataSet 也可以使用功能性的转换（操作 map，flatMap，filter等等）。
+
++ 用户友好的 API 风格，既具有类型安全检查也具有 DataFrame 的查询优化特性
++ DataSet 是强类型的。比如可以有 DataSet[Car]，DataSet[Person]
++ DataFrame 是 DataSet 的特列，DataFrame=DataSet[Row] ，所以可以通过 as 方法将DataFrame 转换为 DataSet。Row 是一个类型，跟 Car、Person 这些的类型一样，所有的表结构信息都用 Row 来表示。获取数据时需要指定顺序
+
+# 34. RDD、DataFrame、DataSet **三者的关系**
+
+## 34.1 三者的共性
+
++ RDD、DataFrame、DataSet 全都是 spark 平台下的分布式弹性数据集，为处理超大型数据提供便利
++ 三者都有惰性机制，在进行创建、转换，如 map 方法时，不会立即执行，只有在遇到Action 如 foreach 时，三者才会开始遍历运算
++ 三者有许多共同的函数，如 filter，排序等
++ 在对 DataFrame 和 Dataset 进行操作许多操作都需要这个包:import spark.implicits._（在创建好 SparkSession 对象后尽量直接导入）
++ 三者都会根据 Spark 的内存情况自动缓存运算，这样即使数据量很大，也不用担心会内存溢出
++ 三者都有 partition 的概念
++ DataFrame 和 DataSet 均可使用模式匹配获取各个字段的值和类型
+
+## 34.2 三者的区别
+
+1. RDD
+   + RDD 一般和 spark mllib 同时使用
+   + RDD 不支持 sparksql 操作
+2. DataFrame
+   + 与 RDD 和 Dataset 不同，DataFrame 每一行的类型固定为 Row，每一列的值没法直接访问，只有通过解析才能获取各个字段的值
+   + DataFrame 与 DataSet 一般不与 spark mllib 同时使用
+   + DataFrame 与 DataSet 均支持 SparkSQL 的操作，比如 select，groupby 之类，还能注册临时表/视窗，进行 sql 语句操作
+   + DataFrame 与 DataSet 支持一些特别方便的保存方式，比如保存成 csv，可以带上表头，这样每一列的字段名一目了然
+3. DataSet
+   + Dataset 和 DataFrame 拥有完全相同的成员函数，区别只是每一行的数据类型不同。DataFrame 其实就是 DataSet 的一个特例
+   + DataFrame 也可以叫 Dataset[Row],每一行的类型是 Row，不解析，每一行究竟有哪些字段，各个字段又是什么类型都无从得知，只能用上面提到的 getAS 方法或者共性中的第七条提到的模式匹配拿出特定字段。而 Dataset 中，每一行是什么类型是不一定的，在自定义了 case class 之后可以很自由的获得每一行的信息
+
+## 34.3 三者的相互转换
+
+![image-20210223193940866](./images/6.png)
+
+# 35. **Executor**有什么功能
+
+Spark Executor 对象是负责在 Spark 作业中运行具体任务，任务彼此之间相互独立。Spark 应用启动时，ExecutorBackend 节点被同时启动，并且始终伴随着整个 Spark 应用的生命周期而存在。如果有 ExecutorBackend 节点发生了故障或崩溃，Spark 应用也可以继续执行，会将出错节点上的任务调度到其他 Executor 节点上继续运行。
+
+Executor 有两个核心功能：
+
++ 负责运行组成 Spark 应用的任务，并将结果返回给驱动器（Driver）；
++ 它们通过自身的块管理器（Block Manager）为用户程序中要求缓存的 RDD 提供内存式存储。RDD 是直接缓存在 Executor 进程内的，因此任务可以在运行时充分利用缓存数据加速运算
+
+# 36. Spark运行流程
+
+![image-20210223200809326](./images/7.png)
+
+1. 任务提交后，都会先启动 Driver 程序
+2. 随后 Driver 向集群管理器注册应用程序
+3. 之后集群管理器根据此任务的配置文件分配 Executor 并启动
+4. Driver 开始执行 main 函数，Spark 查询为懒执行，当执行到 Action 算子时开始反向推算，根据宽依赖进行 Stage 的划分，随后每一个 Stage 对应一个 Taskset，Taskset 中有多个 Task，查找可用资源 Executor 进行调度
+5. 根据本地化原则，Task 会被分发到指定的 Executor 去执行，在任务执行的过程中，Executor 也会不断与 Driver 进行通信，报告任务运行情况
+
+
+
+# 37. Spark **YARN** **Cluster** 模式运行流程
+
+1. 执行脚本提交任务，实际是启动一个 SparkSubmit 的 JVM 进程；
+
+2. SparkSubmit 类中的 main 方法反射调用 YarnClusterApplication 的 main 方法
+
+3. YarnClusterApplication 创建 Yarn 客户端，然后向 Yarn 服务器发送执行指令：bin/java ApplicationMaster
+
+4. Yarn 框架收到指令后会在指定的 NM 中启动 ApplicationMaster
+
+5. ApplicationMaster 启动 Driver 线程，执行用户的作业
+
+6. AM 向 RM 注册，申请资源
+
+7. 获取资源后 AM 向 NM 发送指令：bin/java YarnCoarseGrainedExecutorBackend
+
+8. CoarseGrainedExecutorBackend 进程会接收消息，跟 Driver 通信，注册已经启动的Executor；然后启动计算对象 Executor 等待接收任务
+
+9. Driver 线程继续执行完成作业的调度和任务的执行
+
+10. Driver 分配任务并监控任务的执行
+
+    
+
+    注意：SparkSubmit、ApplicationMaster 和 CoarseGrainedExecutorBackend 是独立的进程；Driver
+
+    是独立的线程；Executor 和 YarnClusterApplication 是对象
+
+    
+
+
+![image-20210223201626691](./images/8.png)
+
+# 38. **YARN Client** **模式**运行流程
+
+1. 执行脚本提交任务，实际是启动一个 SparkSubmit 的 JVM 进程
+2. SparkSubmit 类中的 main 方法反射调用用户代码的 main 方法
+3. 启动 Driver 线程，执行用户的作业，并创建 ScheduleBackend
+4. YarnClientSchedulerBackend 向 RM 发送指令：bin/java ExecutorLauncher
+5. Yarn 框架收到指令后会在指定的 NM 中启动 ExecutorLauncher（实际上还是调用ApplicationMaster 的 main 方法）
+6. AM 向 RM 注册，申请资源
+7. 获取资源后 AM 向 NM 发送指令：bin/java CoarseGrainedExecutorBackend
+8. CoarseGrainedExecutorBackend 进程会接收消息，跟 Driver 通信，注册已经启动的Executor；然后启动计算对象 Executor 等待接收任务
+9. Driver 分配任务并监控任务的执行
+
+注意：SparkSubmit、ApplicationMaster 和 YarnCoarseGrainedExecutorBackend 是独立的进程；Executor 和 Driver 是对象
+
+![image-20210223202050536](./images/9.png)
+
+# 39.  **Standalone Cluster** **模式**运行流程
+
+![image-20210223202236392](./images/10.png)
+
+在 Standalone Cluster 模式下，任务提交后，Master 会找到一个 Worker 启动 Driver。Driver 启动后向 Master 注册应用程序，Master 根据 submit 脚本的资源需求找到内部资源至少可以启动一个 Executor 的所有 Worker，然后在这些 Worker 之间分配 Executor，Worker 上 的 Executor 启动后会向 Driver 反向注册，所有的 Executor 注册完成后，Driver 开始执行 main函数，之后执行到 Action 算子时，开始划分 Stage，每个 Stage 生成对应的 taskSet，之后将Task 分发到各个 Executor 上执行
+
+# 40. **Standalone Client** **模式**运行流程
+
+![image-20210223202446310](./images/11.png)
+
+在 Standalone Client 模式下，Driver 在任务提交的本地机器上运行。Driver 启动后向Master 注册应用程序，Master 根据 submit 脚本的资源需求找到内部资源至少可以启动一个Executor 的所有 Worker，然后在这些 Worker 之间分配 Executor，Worker 上的 Executor 启动后会向 Driver 反向注册，所有的 Executor 注册完成后，Driver 开始执行 main 函数，之后执行到 Action 算子时，开始划分 Stage，每个 Stage 生成对应的 TaskSet，之后将 Task 分发到各个 Executor 上执行
+
+
+
+# 41. Spark的任务调度策略
+
+TaskScheduler 支持两种调度策略，一种是 FIFO，也是默认的调度策略，另一种是 FAIR。 
+
+在 TaskScheduler 初始化过程中会实例化 rootPool，表示树的根节点，是 Pool 类型。
+
+## 41.1 FIFO 调度策略
+
+如果是采用 FIFO 调度策略，则直接简单地将 TaskSetManager 按照先来先到的方式入队，出队时直接拿出最先进队的 TaskSetManager，其树结构如下图所示，TaskSetManager 保存在一个 FIFO 队列中。
+
+![image-20210224100759034](./images/12.png)
+
+## 41.2 FAIR 调度策略
+
+FAIR 调度策略的树结构如下图所示：
+
+![image-20210224100833185](./images/13.png)
+
+FAIR 模式中有一个 rootPool 和多个子 Pool，各个子 Pool 中存储着所有待分配的TaskSetMagager
+
+在 FAIR 模式中，需要先对子 Pool 进行排序，再对子 Pool 里面的 TaskSetMagager 进行排序，因为 Pool 和 TaskSetMagager 都继承了 Schedulable 特质，因此使用相同的排序算法
+
+排序过程的比较是基于 Fair-share 来比较的，每个要排序的对象包含三个属性: 
+
+runningTasks值（正在运行的Task数）、minShare值、weight值，比较时会综合考量runningTasks值，minShare 值以及 weight 值
+
+注意，minShare、weight 的值均在公平调度配置文件 fairscheduler.xml 中被指定，调度池在构建阶段会读取此文件的相关配置。
+
+1. 如果A对象的runningTasks大于它的minShare，B对象的runningTasks小于它的minShare，那么 B 排在 A 前面；（runningTasks 比 minShare 小的先执行）
+2. 如果 A、B 对象的 runningTasks 都小于它们的 minShare，那么就比较 runningTasks 与minShare 的比值（minShare 使用率），谁小谁排前面；（minShare 使用率低的先执行）
+3. 如果 A、B 对象的 runningTasks 都大于它们的 minShare，那么就比较 runningTasks 与weight 的比值（权重使用率），谁小谁排前面。（权重使用率低的先执行）
+4. 如果上述比较均相等，则比较名字。
+
+整体上来说就是通过minShare和weight这两个参数控制比较过程，可以做到让minShare使用率和权重使用率少（实际运行 task 比例较少）的先运行。
+
+FAIR 模式排序完成后，所有的 TaskSetManager 被放入一个 ArrayBuffer 里，之后依次被取出并发送给 Executor 执行
+
+从调度队列中拿到 TaskSetManager 后，由于 TaskSetManager 封装了一个 Stage 的所有Task，并负责管理调度这些 Task，那么接下来的工作就是 TaskSetManager 按照一定的规则一个个取出 Task 给 TaskScheduler，TaskScheduler 再交给 SchedulerBackend 去发到 Executor上执行
+
+# 42. Spark任务的本地化调度
+
+DAGScheduler 切割 Job，划分 Stage, 通过调用 submitStage 来提交一个 Stage 对应的tasks，submitStage 会调用 submitMissingTasks，submitMissingTasks 确定每个需要计算的 task 的 preferredLocations，通过调用 getPreferrdeLocations()得到 partition 的优先位置，由于一个partition 对应一个 Task，此 partition 的优先位置就是 task 的优先位置，对于要提交到TaskScheduler 的 TaskSet 中的每一个 Task，该 task 优先位置与其对应的 partition 对应的优先位置一致。
+
+从调度队列中拿到 TaskSetManager 后，那么接下来的工作就是 TaskSetManager 按照一定的规则一个个取出 task 给 TaskScheduler，TaskScheduler 再交给 SchedulerBackend 去发到Executor 上执行。前面也提到，TaskSetManager 封装了一个 Stage 的所有 Task，并负责管理调度这些 Task。
+
+根据每个 Task 的优先位置，确定 Task 的 Locality 级别，Locality 一共有五种，优先级由高到低顺序：
+
+![image-20210224102104368](./images/14.png)
+
+在调度执行时，Spark 调度总是会尽量让每个 task 以最高的本地性级别来启动，当一个task 以 X 本地性级别启动，但是该本地性级别对应的所有节点都没有空闲资源而启动失败，此时并不会马上降低本地性级别启动而是在某个时间长度内再次以 X 本地性级别来启动该task，若超过限时时间则降级启动，去尝试下一个本地性级别，依次类推。
+
+可以通过调大每个类别的最大容忍延迟时间，在等待阶段对应的 Executor 可能就会有相应的资源去执行此 task，这就在在一定程度上提到了运行性能。
+
+# 43. Spark任务调度的**失败重试与黑名单机制**
+
+除了选择合适的 Task 调度运行外，还需要监控 Task 的执行状态，前面也提到，与外部打交道的是 SchedulerBackend，Task 被提交到 Executor 启动执行后，Executor 会将执行状态上报给 SchedulerBackend，SchedulerBackend 则告诉 TaskScheduler，TaskScheduler 找到该Task 对应的 TaskSetManager，并通知到该 TaskSetManager，这样 TaskSetManager 就知道 Task的失败与成功状态，对于失败的 Task，会记录它失败的次数，如果失败次数还没有超过最大重试次数，那么就把它放回待调度的 Task 池子中，否则整个 Application 失败。
+
+在记录 Task 失败次数过程中，会记录它上一次失败所在的 Executor Id 和 Host，这样下次再调度这个 Task 时，会使用黑名单机制，避免它被调度到上一次失败的节点上，起到一定的容错作用。黑名单记录 Task 上一次失败所在的 Executor Id 和 Host，以及其对应的“拉黑”时间，“拉黑”时间是指这段时间内不要再往这个节点上调度这个 Task 了。
+
+# 44. 描述一下**ShuffleMapStage** **与** **ResultStage**
+
+![image-20210224102735535](./images/15.png)
+
+在划分 stage 时，最后一个 stage 称为 finalStage，它本质上是一个 ResultStage 对象，前面的所有 stage 被称为 ShuffleMapStage。
+
+ShuffleMapStage 的结束伴随着 shuffle 文件的写磁盘。
+
+ResultStage 基本上对应代码中的 action 算子，即将一个函数应用在 RDD 的各个 partition的数据集上，意味着一个 job 的运行结束。
+
+# 45. Spark中的7种存储级别
+
+![image-20210224110535392](./images/16.png)
+
+可以看出存储级别从三个维度定义了 RDD 的 Partition（同时也就是 Block）的存储方式：
+
+1. **存储位置**
+
+   磁盘／堆内内存／堆外内存。如 MEMORY_AND_DISK 是同时在磁盘和堆内内存上存储，实现了冗余备份。OFF_HEAP 则是只在堆外内存存储，目前选择堆外内存时不能同时存储到其他位置
+
+2. **存储形式**
+
+   Block 缓存到存储内存后，是否为非序列化的形式。如 MEMORY_ONLY 是非序列化方式存储，OFF_HEAP 是序列化方式存储
+
+3. **副本数量**
+
+   大于 1 时需要远程冗余备份到其他节点。如 DISK_ONLY_2 需要远程备份 1个副本。
+
+# 46. RDD的缓存机制
+
+RDD 在缓存到存储内存之前，Partition 中的数据一般以迭代器（Iterator）的数据结构来访问，这是 Scala 语言中一种遍历数据集合的方法。通过 Iterator 可以获取分区中每一条序列化或者非序列化的数据项(Record)，这些 Record 的对象实例在逻辑上占用了 JVM 堆内内存的 other 部分的空间，同一 Partition 的不同 Record 的存储空间并不连续。
+
+RDD 在缓存到存储内存之后，Partition 被转换成 Block，Record 在堆内或堆外存储内存中占用一块连续的空间。将 Partition 由不连续的存储空间转换为连续存储空间的过程，Spark称之为"展开"（Unroll）。
+
+Block 有序列化和非序列化两种存储格式，具体以哪种方式取决于该 RDD 的存储级别。非序列化的 Block 以一种 DeserializedMemoryEntry 的数据结构定义，用一个数组存储所有的对象实例，序列化的 Block 则以 SerializedMemoryEntry 的数据结构定义，用字节缓冲区（ByteBuffer）来存储二进制数据。每个 Executor 的 Storage 模块用一个链式 Map 结构（LinkedHashMap）来管理堆内和堆外存储内存中所有的 Block 对象的实例，对这个
+
+LinkedHashMap 新增和删除间接记录了内存的申请和释放。
+
+因为不能保证存储空间可以一次容纳 Iterator 中的所有数据，当前的计算任务在 Unroll 时要向 MemoryManager 申请足够的 Unroll 空间来临时占位，空间不足则 Unroll 失败，空间足够时可以继续进行。
+
+对于序列化的 Partition，其所需的 Unroll 空间可以直接累加计算，一次申请。
+
+对于非序列化的 Partition 则要在遍历 Record 的过程中依次申请，即每读取一条 Record，采样估算其所需的 Unroll 空间并进行申请，空间不足时可以中断，释放已占用的 Unroll 空间。
+
+如果最终 Unroll 成功，当前 Partition 所占用的 Unroll 空间被转换为正常的缓存 RDD 的存储空间，如下图所示。
+
+![image-20210224111508536](./images/17.png)
+
+# 47. RDD的淘汰与落盘
+
+由于同一个 Executor 的所有的计算任务共享有限的存储内存空间，当有新的 Block 需要缓存但是剩余空间不足且无法动态占用时，就要对 LinkedHashMap 中的旧 Block 进行淘汰（Eviction），而被淘汰的 Block 如果其存储级别中同时包含存储到磁盘的要求，则要对其进行落盘（Drop），否则直接删除该 Block。
+
+存储内存的淘汰规则为：
+
+1. 被淘汰的旧 Block 要与新 Block 的 MemoryMode 相同，即同属于堆外或堆内内存
+2. 新旧 Block 不能属于同一个 RDD，避免循环淘汰
+3. 旧 Block 所属 RDD 不能处于被读状态，避免引发一致性问题
+4. 遍历 LinkedHashMap 中 Block，按照最近最少使用（LRU）的顺序淘汰，直到满足新Block 所需的空间。其中 LRU 是 LinkedHashMap 的特性
+
+落盘的流程则比较简单，如果其存储级别符合_useDisk 为 true 的条件，再根据其_deserialized判断是否是非序列化的形式，若是则对其进行序列化，最后将数据存储到磁盘，在 Storage模块中更新其信息
+
+
+
 
 
 
