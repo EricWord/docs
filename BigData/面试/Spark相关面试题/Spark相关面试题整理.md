@@ -318,8 +318,6 @@ join:两个不同数据源的数据，相同key的value会连接在一起，形�
 
 # 16. RDD转换算子有哪些？
 
-### 9.1.2 RDD转换算子有哪些？
-
 根据数据处理方式的不同分为3类：Value类型、双Value类型、Key-Value类型
 
 1. Value类型
@@ -929,7 +927,7 @@ Spark 作业运行过程中，Driver 会对每一个 stage 的 task 进行分配
 
 网络传输数据的情况是我们不愿意看到的，大量的网络传输会严重影响性能，因此，我们希望通过调节本地化等待时长，如果在等待时长这段时间内，目标节点处理完成了一部分task，那么当前的 task 将有机会得到执行，这样就能够改善 Spark 作业的整体性能。
 
-Spark 的本地化等级如表所示：
+Spark 的本地化等级如表所示：(面试问:Spark的数据本地性有哪几种？)
 
 ![image-20210224125529583](./images/22.png)
 
@@ -1176,6 +1174,12 @@ Executor 堆外内存的配置需要在 spark-submit 脚本里配置，如代码
 1. Spark 作业的大部分 task 都执行迅速，只有有限的几个 task 执行的非常慢，此时可能出现了数据倾斜，作业可以运行，但是运行得非常慢
 2. Spark 作业的大部分 task 都执行迅速，但是有的 task 在运行过程中会突然报出 OOM，反复执行几次都在某一个 task 报出 OOM 错误，此时可能出现了数据倾斜，作业无法正常运行
 
+
+
+问题：什么是数据倾斜？
+
+少数的task处理了绝大多数数据
+
 # 53. 如何**定位数据倾斜问题**
 
 1. 查阅代码中的 shuffle 算子，例如 reduceByKey、countByKey、groupByKey、join 等算子，根据代码逻辑判断此处是否会出现数据倾斜
@@ -1416,6 +1420,423 @@ Spark 持久化在大部分情况下是没有问题的，但是有时数据可�
 一个 RDD 缓存并 checkpoint 后，如果一旦发现缓存丢失，就会优先查看 checkpoint 数据存不存在，如果有，就会使用 checkpoint 数据，而不用重新计算。也即是说，checkpoint可以视为 cache 的保障机制，如果 cache 失败，就使用 checkpoint 的数据。
 
 使用 checkpoint 的优点在于提高了 Spark 作业的可靠性，一旦缓存出现问题，不需要重新计算数据，缺点在于，checkpoint 时需要将数据写入 HDFS 等文件系统，对性能的消耗较大。
+
+
+
+# 56. 简述Spark的宽窄依赖，以及Spark如何划分stage，每个stage根据什么决定task个数?
+
+窄依赖:父RDD的一个分区至多只会被子RDD的一个分区依赖
+
+宽依赖:父RDD的一个分区会被子RDD的多个分区依赖(涉及到shuffle)
+
+Stage是如何划分：根据RDD之间的依赖关系的不同将Job划分成不同的Stage，遇到一个宽依赖则划分一个Stage
+
+每个stage又根据什么决定task个数： Stage是一个TaskSet，将Stage根据分区数划分成一个个的Task
+
+
+
+# 57. Spark中哪些算子会导致Shuffle?
+
+- reduceByKey
+- groupByKey
+- ...ByKey
+
+join、distinct、repartition
+
+# 58. 简述下Spark中的缓存(cache和persist)与checkpoint机制，并指出两者的区别和联系
+
+关于Spark缓存和检查点的区别，大致可以从这3个角度去回答：
+
+- 位置
+
+​    Persist 和 Cache将数据保存在内存，Checkpoint将数据保存在HDFS
+
+- 生命周期
+
+​    Persist 和 Cache  程序结束后会被清除或手动调用unpersist方法，Checkpoint永久存储不会被删除。
+
+- RDD依赖关系
+
+​    Persist 和 Cache，不会丢掉RDD间的依赖链/依赖关系，CheckPoint会斩断依赖链。
+
+
+
+# 59. 如何使用Spark实现TopN的获取
+
+- 方法1：
+
+​    （1）按照key对数据进行聚合（groupByKey）
+
+​    （2）将value转换为数组，利用scala的sortBy或者sortWith进行排序（mapValues）
+
+​    注意：当数据量太大时，会导致OOM
+
+- 方法2：
+
+​    （1）取出所有的key
+
+​    （2）对key进行迭代，每次取出一个key利用spark的排序算子进行排序
+
+- 方法3：
+
+​    （1）自定义分区器，按照key进行分区，使不同的key进到不同的分区
+
+​    （2）对每个分区运用spark的排序算子进行排序
+
+
+
+# 60. Spark为什么比mapreduce快？
+
+　    1）基于内存计算，减少低效的磁盘交互；
+　　2）高效的调度算法，基于DAG；
+　　3）容错机制Linage，精华部分就是DAG和Lingae
+
+
+
+# 61. hadoop和spark的shuffle相同和差异
+
+1. 从 high-level 的角度来看，两者并没有大的差别。 都是将 mapper（Spark 里是 ShuffleMapTask）的输出进行 partition，不同的 partition 送到不同的 reducer（Spark 里 reducer 可能是下一个 stage 里的 ShuffleMapTask，也可能是 ResultTask）。Reducer 以内存作缓冲区，边 shuffle 边 aggregate 数据，等到数据 aggregate 好以后进行 reduce() （Spark 里可能是后续的一系列操作）。
+
+2. 从 low-level 的角度来看，两者差别不小。 Hadoop MapReduce 是 sort-based，进入 combine() 和 reduce() 的 records 必须先 sort。这样的好处在于 combine/reduce() 可以处理大规模的数据，因为其输入数据可以通过外排得到（mapper 对每段数据先做排序，reducer 的 shuffle 对排好序的每段数据做归并）。目前的 Spark 默认选择的是 hash-based，通常使用 HashMap 来对 shuffle 来的数据进行 aggregate，不会对数据进行提前排序。如果用户需要经过排序的数据，那么需要自己调用类似 sortByKey() 的操作；如果你是Spark 1.1的用户，可以将spark.shuffle.manager设置为sort，则会对数据进行排序。在Spark 1.2中，sort将作为默认的Shuffle实现。
+
+3. 从实现角度来看，两者也有不少差别。 Hadoop MapReduce 将处理流程划分出明显的几个阶段：map(), spill, merge, shuffle, sort, reduce() 等。每个阶段各司其职，可以按照过程式的编程思想来逐一实现每个阶段的功能。在 Spark 中，没有这样功能明确的阶段，只有不同的 stage 和一系列的 transformation()，所以 spill, merge, aggregate 等操作需要蕴含在 transformation() 中。如果我们将 map 端划分数据、持久化数据的过程称为 shuffle write，而将 reducer 读入数据、aggregate 数据的过程称为 shuffle read。那么在 Spark 中，问题就变为怎么在 job 的逻辑或者物理执行图中加入 shuffle write 和 shuffle read 的处理逻辑？以及两个处理逻辑应该怎么高效实现？ Shuffle write由于不要求数据有序，shuffle write 的任务很简单：将数据 partition 好，并持久化。之所以要持久化，一方面是要减少内存存储空间压力，另一方面也是为了 fault-tolerance。
+
+
+
+# 62. cache和pesist的区别
+
+1. cache和persist都是用于将一个RDD进行缓存的，这样在之后使用的过程中就不需要重新计算了，可以大大节省程序运行时间；
+
+2. cache只有一个默认的缓存级别MEMORY_ONLY ，cache调用了persist，而persist可以根据情况设置其它的缓存级别；
+
+3. executor执行的时候，默认60%做cache，40%做task操作，persist最根本的函数，最底层的函数
+
+# 63. RDD有哪些缺陷？
+
+1. 不支持细粒度的写和更新操作（如网络爬虫），spark写数据是粗粒度的所谓粗粒度，就是批量写入数据，为了提高效率。但是读数据是细粒度的也就是说可以一条条的读
+2. 不支持增量迭代计算，Flink支持
+
+# 64. rdd有几种操作类型？
+
+1. transformation，rdd由一种转为另一种rdd
+2. action
+3. cronroller，crontroller是控制算子,cache,persist，对性能和效率的有很好的支持三种类型，不要回答只有2种
+
+# 65. Spark程序执行，有时候默认为什么会产生很多task，怎么修改默认task执行个数
+
+1. 因为输入数据有很多task，尤其是有很多小文件的时候，有多少个输入block就会有多少个task启动
+2. spark中有partition的概念，每个partition都会对应一个task，task越多，在处理大规模数据的时候，就会越有效率。不过task并不是越多越好，如果平时测试，或者数据量没有那么大，则没有必要task数量太多
+3. 参数可以通过spark_home/conf/spark-default.conf配置文件设置:spark.sql.shuffle.partitions 50 spark.default.parallelism 10第一个是针对spark sql的task数量第二个是非spark sql程序设置生效
+
+# 66. 为什么Spark Application在没有获得足够的资源，job就开始执行了，可能会导致什么什么问题发生?
+
+会导致执行该job时候集群资源不足，导致执行job结束也没有分配足够的资源，分配了部分Executor，该job就开始执行task，应该是task的调度线程和Executor资源申请是异步的；如果想等待申请完所有的资源再执行job的：需要将spark.scheduler.maxRegisteredResourcesWaitingTime设置的很大；spark.scheduler.minRegisteredResourcesRatio 设置为1，但是应该结合实际考虑否则很容易出现长时间分配不到资源，job一直不能运行的情况。
+
+
+
+# 67. join操作优化经验？
+
+join其实常见的就分为两类： map-side join 和 reduce-side join。当大表和小表join时，用map-side join能显著提高效率。将多份数据进行关联是数据处理过程中非常普遍的用法，不过在分布式计算系统中，这个问题往往会变的非常麻烦，因为框架提供的 join 操作一般会将所有数据根据 key 发送到所有的 reduce 分区中去，也就是 shuffle 的过程。造成大量的网络以及磁盘IO消耗，运行效率极其低下，这个过程一般被称为 reduce-side-join。如果其中有张表较小的话，我们则可以自己实现在 map 端实现数据关联，跳过大量数据进行 shuffle 的过程，运行时间得到大量缩短，根据不同数据可能会有几倍到数十倍的性能提升
+
+
+
+# 68. 介绍一下cogroup rdd实现原理，你在什么场景下用过这个rdd
+
+cogroup的函数实现:这个实现根据两个要进行合并的两个RDD操作,生成一个CoGroupedRDD的实例,这个RDD的返回结果是把相同的key中两个RDD分别进行合并操作,最后返回的RDD的value是一个Pair的实例,这个实例包含两个Iterable的值,第一个值表示的是RDD1中相同KEY的值,第二个值表示的是RDD2中相同key的值.由于做cogroup的操作,需要通过partitioner进行重新分区的操作,因此,执行这个流程时,需要执行一次shuffle的操作(如果要进行合并的两个RDD的都已经是shuffle后的rdd,同时他们对应的partitioner相同时,就不需要执行shuffle
+
+
+
+# 69.你所理解的 Spark 的 shuffle 过程
+
+Spark shuffle 处于一个宽依赖，可以实现类似混洗的功能，将相同的 Key 分发至同一个 Reducer上进行处理。
+
+# 70. Spark有哪些聚合类的算子,我们应该尽量避免什么类型的算子？
+
+在我们的开发过程中，**能避免则尽可能避免使用** reduceByKey、join、distinct、repartition 等会进行 shuffle 的算子，尽量使用 map 类的非 shuffle 算子。这样的话，没有 shuffle 操作或者仅有较少 shuffle 操作的 Spark 作业，可以大大减少性能开销
+
+
+
+# 71. Spark为什么快，Spark SQL 一定比 Hive 快吗
+
+Spark SQL 比 Hadoop Hive 快，是有一定条件的，而且不是 Spark SQL 的引擎比 Hive 的引擎快，相反，Hive 的 HQL 引擎还比 Spark SQL 的引擎更快。其实，关键还是在于 Spark 本身快。
+
+1. 消除了冗余的 HDFS 读写: Hadoop 每次 shuffle 操作后，必须写到磁盘，而 Spark 在 shuffle 后不一定落盘，可以 cache 到内存中，以便迭代时使用。如果操作复杂，很多的 shufle 操作，那么 Hadoop 的读写 IO 时间会大大增加，也是 Hive 更慢的主要原因了
+2. 消除了冗余的 MapReduce 阶段: Hadoop 的 shuffle 操作一定连着完整的 MapReduce 操作，冗余繁琐。而 Spark 基于 RDD 提供了丰富的算子操作，且 reduce 操作产生 shuffle 数据，可以缓存在内存
+3. JVM 的优化: Hadoop 每次 MapReduce 操作，启动一个 Task 便会启动一次 JVM，基于进程的操作。而 Spark 每次 MapReduce 操作是基于线程的，只在启动 Executor 是启动一次 JVM，内存的 Task 操作是在线程复用的。每次启动 JVM 的时间可能就需要几秒甚至十几秒，那么当 Task 多了，这个时间 Hadoop 不知道比 Spark 慢了多少
+
+**记住一种反例** 考虑一种极端查询:
+
+```sql
+Select month_id, sum(sales) from T group by month_id;
+```
+
+这个查询只有一次 shuffle 操作，此时，也许 Hive HQL 的运行时间也许比 Spark 还快，反正 shuffle 完了都会落一次盘，或者都不落盘。
+
+**结论** Spark 快不是绝对的，但是绝大多数，Spark 都比 Hadoop 计算要快。这主要得益于其对 mapreduce 操作的优化以及对 JVM 使用的优化。
+
+# 72. RDD, DAG, Stage怎么理解？
+
+**DAG** Spark 中使用 DAG 对 RDD 的关系进行建模，描述了 RDD 的依赖关系，这种关系也被称之为 lineage（血缘），RDD 的依赖关系使用 Dependency 维护。DAG 在 Spark 中的对应的实现为 DAGScheduler。
+
+**RDD** RDD 是 Spark 的灵魂，也称为弹性分布式数据集。一个 RDD 代表一个可以被分区的只读数据集。RDD 内部可以有许多分区(partitions)，每个分区又拥有大量的记录(records)。Rdd的五个特征： 1. dependencies: 建立 RDD 的依赖关系，主要 RDD 之间是宽窄依赖的关系，具有窄依赖关系的 RDD 可以在同一个 stage 中进行计算。 2. partition: 一个 RDD 会有若干个分区，分区的大小决定了对这个 RDD 计算的粒度，每个 RDD 的分区的计算都在一个单独的任务中进行。 3. preferedlocations: 按照“移动数据不如移动计算”原则，在 Spark 进行任务调度的时候，优先将任务分配到数据块存储的位置。 4. compute: Spark 中的计算都是以分区为基本单位的，compute 函数只是对迭代器进行复合，并不保存单次计算的结果。 5. partitioner: 只存在于（K,V）类型的 RDD 中，非（K,V）类型的 partitioner 的值就是 None。
+
+RDD 的算子主要分成2类，action 和 transformation。这里的算子概念，可以理解成就是对数据集的变换。action 会触发真正的作业提交，而 transformation 算子是不会立即触发作业提交的。每一个 transformation 方法返回一个新的 RDD。只是某些 transformation 比较复杂，会包含多个子 transformation，因而会生成多个 RDD。这就是实际 RDD 个数比我们想象的多一些 的原因。通常是，当遇到 action 算子时会触发一个job的提交，然后反推回去看前面的 transformation 算子，进而形成一张有向无环图。
+
+**Stage** 在 DAG 中又进行 stage 的划分，划分的依据是依赖是否是 shuffle 的，每个 stage 又可以划分成若干 task。接下来的事情就是 driver 发送 task 到 executor，**executor 自己的线程池**去执行这些 task，完成之后将结果返回给 driver。action 算子是划分不同 job 的依据。
+
+# 73. Job 和 Task 怎么理解
+
+**Job** Spark 的 Job 来源于用户执行 action 操作（这是 Spark 中实际意义的 Job），就是从 RDD 中获取结果的操作，而不是将一个 RDD 转换成另一个 RDD 的 transformation 操作。
+
+**Task** 一个 Stage 内，最终的 RDD 有多少个 partition，就会产生多少个 task。看一看图就明白了，可以数一数每个 Stage 有多少个 Task。
+
+
+
+# 74. Spark 的5大优势
+
+1. 更高的性能。因为数据被加载到集群主机的分布式内存中。数据可以被快速的转换迭代，并缓存用以后续的频繁访问需求。在数据全部加载到内存的情况下，Spark可以比Hadoop快100倍，在内存不够存放所有数据的情况下快hadoop10倍。
+2. 通过建立在Java,Scala,Python,SQL（应对交互式查询）的标准API以方便各行各业使用，同时还含有大量开箱即用的机器学习库。 
+3. 与现有Hadoop 1和2.x(YARN)生态兼容，因此机构可以无缝迁移。 
+4. 方便下载和安装。方便的shell（REPL: Read-Eval-Print-Loop）可以对API进行交互式的学习。 
+5. 借助高等级的架构提高生产力，从而可以讲精力放到计算上。
+
+
+
+# 75. Transformation和action是什么？区别？举几个常用方法
+
+RDD 创建后就可以在 RDD 上进行数据处理。RDD 支持两种操作: 1. 转换（transformation）: 即从现有的数据集创建一个新的数据集 2. 动作（action）: 即在数据集上进行计算后，返回一个值给 Driver 程序
+
+RDD 的转化操作是返回一个新的 RDD 的操作，比如 map() 和 filter() ，而行动操作则是向驱动器程序返回结果或把结果写入外部系统的操作，会触发实际的计算，比如 count() 和 first() 。Spark 对待转化操作和行动操作的方式很不一样，因此理解你正在进行的操作的类型是很重要的。如果对于一个特定的函数是属于转化操作还是行动操作感到困惑，你可以看看它的返回值类型：转化操作返回的是 RDD，而行动操作返回的是其他的数据类型。
+
+RDD 中所有的 Transformation 都是惰性的，也就是说，它们并不会直接计算结果。相反的它们只是记住了这些应用到基础数据集（例如一个文件）上的转换动作。只有当发生一个要求返回结果给 Driver 的 Action 时，这些 Transformation 才会真正运行
+
+# 76. Spark sql你使用过没有，在哪个项目里面使用的
+
+离线 ETL 之类的，结合机器学习等
+
+
+
+# 77. 为什么要用Yarn来部署Spark?
+
+因为 Yarn 支持动态资源配置。Standalone 模式只支持简单的固定资源分配策略，每个任务固定数量的 core，各 Job 按顺序依次分配在资源，资源不够的时候就排队。这种模式比较适合单用户的情况，多用户的情境下，会有可能有些用户的任务得不到资源。
+
+Yarn 作为通用的种子资源调度平台，除了 Spark 提供调度服务之外，还可以为其他系统提供调度，如 Hadoop MapReduce, Hive 等。
+
+
+
+# 78. 说说Worker和Excutor的异同
+
+Worker 是指每个及节点上启动的一个进程，负责管理本节点，jps 可以看到 Worker 进程在运行。 Excutor 每个Spark 程序在每个节点上启动的一个进程，专属于一个 Spark 程序，与 Spark 程序有相同的生命周期，负责 Spark 在节点上启动的 Task，管理内存和磁盘。如果一个节点上有多个 Spark 程序，那么相应就会启动多个执行器
+
+# 79. 说说什么是窗口间隔和滑动间隔
+
+对于窗口操作，在其窗口内部会有 N 个批处理数据，批处理数据的个数由窗口间隔决定，其为窗口持续的时间，在窗口操作中只有窗口间隔满足了才会触发批数据的处理（指一开始的阶段）。
+
+滑动间隔是指经过多长时间窗口滑动一次形成新的窗口，滑动窗口默认情况下和批次间隔的相同，而窗口间隔一般设置得要比它们都大
+
+# 80. 说说Spark的预写日志功能
+
+也叫 WriteAheadLogs，通常被用于数据库和文件系统中，保证数据操作的持久性。预写日志通常是先将操作写入到一个持久可靠的日志文件中，然后才对数据施加该操作，当加入施加该操作中出现异常，可以通过读取日志文件并重新施加该操作，从而恢复系统。
+
+当 WAL 开启后，所有收到的数据同时保存到了容错文件系统的日志文件中，当 Spark Streaming 失败，这些接受到的数据也不会丢失。另外，接收数据的正确性只在数据被预写到日志以后接收器才会确认。已经缓存但还没有保存的数据可以在 Driver 重新启动之后由数据源再发送一次（经常问）。
+
+这两个机制保证了数据的零丢失，即所有的数据要么从日志中恢复，要么由数据源重发
+
+
+
+# 81. Spark 经常说的 Repartition 有什么作用
+
+一般上来说有多少个 Partition，就有多少个 Task，Repartition 的理解其实很简单，就是把原来 RDD 的分区重新安排。这样做有什么好坏呢？
+
+1. 避免小文件
+2. 减少 Task 个数
+3. 但是会增加每个 Task 处理的数据量，Task 运行时间可能会增加
+
+# 82. 写一个wordcount程序
+
+```scala
+    sc.textFile("datas")
+      .flatMap(_.split(" "))
+      .groupBy(word => word)
+      .map {
+        //模式匹配
+        case (word, list) => {
+          (word, list.size)
+        }
+      }
+      .collect()
+      .foreach(println)
+```
+
+# 83. Task 和 Stage 的分类
+
+Task 指具体的**执行任务**，一个 Job 在每个 Stage 内都会按照 RDD 的 Partition 数量，创建多个 Task，Task 分为 ShuffleMapTask 和 ResultTask 两种。
+
+ShuffleMapStage 中的 Task 为 ShuffleMapTask，而 ResultStage 中的 Task 为 ResultTask。
+
+ShuffleMapTask 和 ResultTask 类似于 Hadoop 中的 Map 任务和 Reduce 任务。
+
+# 84. **什么是shuffle，以及为什么需要shuffle？**
+
+shuffle中文翻译为洗牌，需要shuffle的原因是：某种具有共同特征的数据汇聚到一个计算节点上进行计算
+
+ # 85. **Spark master HA 主从切换过程不会影响集群已有的作业运行，为什么？**
+
+因为程序在运行之前，已经申请过资源了，driver和Executors通讯，不需要和master进行通讯的
+
+# 86. **Spark并行度怎么设置比较合适**
+
+- spark并行度，每个core承载2~4个partition（并行度）
+- 并行读和数据规模无关，只和内存和cpu有关
+
+#  87. **Spark如何处理不能被序列化的对象？**
+
+封装成object
+
+# 88. **partition和block的关联**
+
+1. hdfs中的block是分布式存储的最小单元，等分，可设置冗余，这样设计有一部分磁盘空间的浪费，但是整齐的block大小，便于快速找到、读取对应的内容
+2. Spark中的partition是RDD的最小单元，RDD是由分布在各个节点上的partition组成的
+3. partition是指的spark在计算过程中，生成的数据在计算空间内最小单元
+4. 同一份数据（RDD）的partion大小不一，数量不定，是根据application里的算子和最初读入的数据分块数量决定
+5. block位于存储空间；partion位于计算空间，block的大小是固定的、partion大小是不固定的，是从2个不同的角度去看数据
+
+# 89. **Mapreduce操作的mapper和reducer阶段相当于spark中的哪几个算子？**
+
+相当于spark中的map算子和reduceByKey算子，区别：MR会自动进行排序的，spark要看具体partitioner
+
+# 90. **RDD的弹性表现在哪几点？**
+
+1. 自动的进行内存和磁盘的存储切换
+2. 基于Lingage的高效容错
+3. task如果失败会自动进行特定次数的重试
+4. stage如果失败会自动进行特定次数的重试，而且只会计算失败的分片
+5. checkpoint和persist，数据计算之后持久化缓存
+6. 数据调度弹性，DAG TASK调度和资源无关
+7. 数据分片的高度弹性,分片很多碎片可以合并成大的
+
+# 91. **cache后面能不能接其他算子,它是不是action操作？**
+
+- 可以接其他算子，但是接了算子之后，起不到缓存应有的效果，因为会重新触发cache
+- cache不是action操作
+
+# 91. **什么场景下要进行persist操作？**
+
+1. 某个步骤计算非常耗时或计算链条非常长，需要进行persist持久化
+2. shuffle之后为什么要persist，shuffle要进性网络传输，风险很大，数据丢失重来，恢复代价很
+3. shuffle之前进行persist，框架默认将数据持久化到磁盘，这个是框架自动做的
+
+# 92. **reduceByKey是不是action？**
+
+不是，很多人都会以为是action，reduce rdd是action
+
+# 93. **collect功能是什么，其底层是怎么实现的？**
+
+- driver通过collect把集群中各个节点的内容收集过来汇总成结果
+- collect返回结果是Array类型的，合并后Array中只有一个元素，是tuple类型（KV类型的）的
+
+# 94. **map与flatMap的区别**
+
+- map：对RDD每个元素转换，文件中的每一行数据返回一个数组对象
+- flatMap：对RDD每个元素转换，然后再扁平化，将所有的对象合并为一个对象，会抛弃值为null的值
+
+# 95. **列举你常用的action？**
+
+collect，reduce,take,count,saveAsTextFile
+
+# 96. **union操作是产生宽依赖还是窄依赖？**
+
+窄依赖
+
+# 97. **Spark累加器有哪些特点？**
+
+1. 全局的，只增不减，记录全局集群的唯一状态
+2. 在exe中修改它，在driver读取
+3. executor级别共享的，广播变量是task级别的共享
+4. 两个application不可以共享累加器，但是同一个app不同的job可以共享
+
+# 98. **spark hashParitioner的弊端**
+
+- 分区原理：对于给定的key，计算其hashCode
+- 弊端是数据不均匀，容易导致数据倾斜
+
+# 99. **RangePartitioner分区的原理**
+
+- 尽量保证每个分区中数据量的均匀，而且分区与分区之间是有序的，也就是说一个分区中的元素肯定都是比另一个分区内的元素小或者大
+- 分区内的元素是不能保证顺序的
+- 简单的说就是将一定范围内的数映射到某一个分区内
+
+# 100. **Spark中的HashShufle的有哪些不足？**
+
+1. shuffle产生海量的小文件在磁盘上，此时会产生大量耗时的、低效的IO操作
+2. 容易导致内存不够用，由于内存需要保存海量的文件操作句柄和临时缓存信息
+3. 容易出现数据倾斜，导致OOM
+
+# 101 TopN问题
+
+给定一个大文件，求里面Ip出现最多次数的前N个Ip地址和出现次数
+
+```scala
+//用正则找出IP地址
+data.map(line=>"""\d+\.\d+\.\d+\.\d+""".r.findAllIn(line).mkString)
+//过滤掉非IP地址
+.filter(_!="")
+//map
+.map(word=>(word,1))
+//reduce
+.reduceByKey(_+_)
+//逆转map
+.map(word=>(word._2,word._1))
+//排序
+.sortByKey(false).map(word=>(word._2,word._1)) take 50
+```
+
+# 102. **如何使用Spark解决分组排序问题**
+
+https://blog.csdn.net/huitoukest/article/details/51273143
+
+# 103. **给定a、b两个文件，各存放50亿个url，每个url各占64字节，内存限制是4G，让你找出a、b文件共同的url?**
+
+方案1：可以估计每个文件安的大小为5G×64=320G，远远大于内存限制的4G。所以不可能将其完全加载到内存中处理。考虑采取分而治之的方法。
+ 遍历文件a，对每个url求取hash(url)%1000，然后根据所取得的值将url分别存储到1000个小文件(记为a0,a1,…,a999)中。这样每个小文件的大约为300M。
+ 遍历文件b，采取和a相同的方式将url分别存储到1000小文件(记为b0,b1,…,b999)。这样处理后，所有可能相同的url都在对应的小文件(a0vsb0,a1vsb1,…,a999vsb999)中，不对应的小文件不可能有相同的url。然后我们只要求出1000对小文件中相同的url即可。
+ 求每对小文件中相同的url时，可以把其中一个小文件的url存储到hash_set中。然后遍历另一个小文件的每个url，看其是否在刚才构建的hash_set中，如果是，那么就是共同的url，存到文件里面就可以了。
+
+方案2：如果允许有一定的错误率，可以使用Bloomfilter，4G内存大概可以表示340亿bit。将其中一个文件中的url使用Bloomfilter映射为这340亿bit，然后挨个读取另外一个文件的url，检查是否与Bloomfilter，如果是，那么该url应该是共同的url(注意会有一定的错误率)。
+
+# 104. **有一个1G大小的一个文件，里面每一行是一个词，词的大小不超过16字节，内存限制大小是1M，要求返回频数最高的100个词。**
+
+Step1：顺序读文件中，对于每个词x，取hash(x)%5000，然后按照该值存到5000个小文件(记为f0,f1,...,f4999)中，这样每个文件大概是200k左右，如果其中的有的文件超过了1M大小，还可以按照类似的方法继续往下分，直到分解得到的小文件的大小都不超过1M;
+
+Step2：对每个小文件，统计每个文件中出现的词以及相应的频率(可以采用trie树/hash_map等)，并取出出现频率最大的100个词(可以用含100个结点的最小堆)，并把100词及相应的频率存入文件，这样又得到了5000个文件;
+
+Step3：把这5000个文件进行归并(类似与归并排序);
+
+# 105. **现有海量日志数据保存在一个超级大的文件中，该文件无法直接读入内存，要求从中提取某天出访问百度次数最多的那个IP**
+
+分而治之+Hash
+ 1)IP地址最多有2^32=4G种取值情况，所以不能完全加载到内存中处理;
+ 2)可以考虑采用“分而治之”的思想，按照IP地址的Hash(IP)%1024值，把海量IP日志分别存储到1024个小文件中。这样，每个小文件最多包含4MB个IP地址;
+ 3)对于每一个小文件，可以构建一个IP为key，出现次数为value的Hashmap，同时记录当前出现次数最多的那个IP地址;
+ 4)可以得到1024个小文件中的出现次数最多的IP，再依据常规的排序算法得到总体上出现次数最多的IP;
+
+# 106. **在2.5亿个整数中找出不重复的整数，注，内存不足以容纳这2.5亿个整数**
+
+方案1：采用2-Bitmap(每个数分配2bit，00表示不存在，01表示出现一次，10表示多次，11无意义)进行，共需内存2^32*2bit=1GB内存，还可以接受。然后扫描这2.5亿个整数，查看Bitmap中相对应位，如果是00变01，01变10，10保持不变。所描完事后，查看bitmap，把对应位是01的整数输出即可。
+
+方案2：也可采用与第1题类似的方法，进行划分小文件的方法。然后在小文件中找出不重复的整数，并排序。然后再进行归并，注意去除重复的元素。
+
+# 107. **给40亿个不重复的unsignedint的整数，没排过序的，然后再给一个数，如何快速判断这个数是否在那40亿个数当中?**
+
+申请512M的内存，一个bit位代表一个unsignedint值。读入40亿个数，设置相应的bit位，读入要查询的数，查看相应bit位是否为1，为1表示存在，为0表示不存在
+
+# 108. mllib支持的算法？
+
+分类、聚类、回归、协同过滤
+
+# 109. DataFrame 和 RDD 最大的区别
+
+多了schema
 
 
 

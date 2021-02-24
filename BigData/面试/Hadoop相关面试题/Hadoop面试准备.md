@@ -888,3 +888,14 @@ Hadoop 2.x 升级到Hadoop 3.x发生变更的端口
 没有发生变更的常用端口号
 
 ![image-20210222103711374](./images/39.png)
+
+# 20. **简答说一下hadoop的mapreduce编程模型**
+
+1. 首先map task会从本地文件系统读取数据，转换成key-value形式的键值对集合，使用的是hadoop内置的数据类型（longwritable、text）
+2. 将键值对集合输入mapper进行业务处理过程，将其转换成需要的key-value在输出
+3. 之后会进行一个partition分区操作，默认使用的是hashpartitioner，自定义分区：重写getpartition方法
+4. 之后会对key进行进行sort排序，grouping分组操作将相同key的value合并分组输出
+5. 之后进行一个combiner归约操作，其实就是一个本地段的reduce预处理，以减小后面shufle和reducer的工作
+6. reduce task会通过网络将各个数据收集进行reduce处理
+7. 最后将数据保存或者显示，结束整个job
+
