@@ -1,0 +1,1208 @@
+[TOC]
+
+# 1. 变量和数据类型
+
+## 1.1 数据类型
+
++ 数字类型
+
+  整型int、浮点型float、复数complex
+
+  注意长整型long在python3中已经被废弃了
+
++ 字符串类型
+
++ 布尔类型(bool)
+
+  可取值：True,False   注意首字母是大写
+
++ 列表(list)
+
++ 元组(tuple)
+
++ 字典dict
+
++ 集合set
+
+注意：在python里，变量是没有数据类型的，我们所说变量的数据类型，其实是变量对应的值的数据类型
+
+## 1.2 标识符规范
+
+在python里的变量、函数和模块名使用下划线连接，类名使用大驼峰命名法
+
+## 1.3 运算符
+
+1. 加法运算符
+
+   在字符串中只能用于两个字符串类型的数据，用来拼接两个字符串，不支持字符串和整数进行加法运算
+
+2. 乘法运算符
+
+   在字符串中，乘法运算符可以用于数字和字符串之间，用来将一个字符串重复多次
+
+   ```python
+   print('hello' * 2) # hellohello
+   ```
+
+## 1.4 unpack(拆包)
+
+```python
+m, n = 3, 5
+print(m, n) # 3 5
+```
+
+如果一个变量要接收多个拆包后的值，可以这样写
+
+```python
+o, *p, q = 1, 2, 3, 4, 5, 6
+print(o, p, q) # 1 [2, 3, 4, 5] 6
+```
+
+上述代码中*p表示可变长度
+
+
+
+## 1.5 逻辑运算的优先级
+
+not >  and > or
+
+## 1.6 字符串类型的操作
+
+字符串类型是不可变的，对字符串的任何操作都不会改变原有字符串
+
+find()和index()都是获取字符串中某个字符的索引，不同的是，如果目标字母没找到，find返回-1，index报错
+
+ 
+
+## 1.7 切片
+
+切片就是从字符串里复制一段指定的内容，生成一个新的字符串
+
+s[`start:end:step`​]
+
+包含start不包括end
+
+step默认为1,不能为0，可以是负数，注意如果step是负数，start要大于end
+
+
+
+## 1.8 交换两个变量的值的方法
+
+1. 方法1：使用第三个变量
+
+   ```python
+   c=b
+   b=a
+   a=c
+   ```
+
+   
+
+2. 使用运算符来实现，此时变量只能是数字
+
+   ```python
+   a=a+b
+   b=a-b
+   a=a-b
+   ```
+
+   
+
+3. 使用异或运算符
+
+   ```python
+   a=a^b
+   b=a^b
+   a=a^b
+   ```
+
+4. python中特有的方法
+
+   ```python
+   a,b=b,a
+   ```
+
+
+
+
+
+## 1.9 可变类型和不可变类型
+
+python里的数据都是保存到内存里的
+
+python里的数据又分为可变类型和不可变类型
+
+不可变类型：字符串、数字、元组
+
+可变类型：列表、字典、集合
+
+不可变数据类型如果修改值，内存地址会发生变化
+
+可变数据类型，如果修改值，内存地址不会发生变化
+
+
+
+# 2. 列表
+
+列表可以使用extend方法将两个列表合并成为一个列表
+
+```python
+nums1 = [1, 2, 3, 4, 5]
+num2 = [6, 7, 8, 9]
+nums1.extend(num2)
+print(nums1) # [1, 2, 3, 4, 5, 6, 7, 8, 9]
+# 下面这种合并列表的方法也可以
+print(nums1 + num2)# [1, 2, 3, 4, 5, 6, 7, 8, 9]
+```
+
+
+
+## 2.1 列表推导式
+
+```python
+# 列表推导式是使用简单的语法创建一个列表
+
+nums = [i for i in range(10)]
+print(nums) # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+x = [i for i in range(10) if i % 2 == 0]
+print(x) # [0, 2, 4, 6, 8]
+
+points = [(x1, y1) for x1 in range(5, 9) for y1 in range(10, 20)]
+print(points) # [(5, 10), (5, 11), (5, 12), (6, 10), (6, 11), (6, 12)]
+
+```
+
+## 2.2 深拷贝和浅拷贝
+
+```python
+import copy
+
+# 浅拷贝
+nums = [1, 2, 3, 4, 5]
+nums1 = nums  # 这个既不是深拷贝也不是浅拷贝
+nums2 = nums.copy()  # 浅拷贝 ，两个内容一模一样，但是不是同一个对象
+nums3 = copy.copy(nums)  # 和 nums.copy()功能一样，都是浅拷贝
+
+# 深拷贝只能使用copy模块来实现
+words = ["hello", "good", [100, 200, 300], "yes", "hi", "ok"]
+# words1是word的浅拷贝
+words1 = words.copy()
+# words[0] = "你好"
+# words[2][0] = 1
+# print(words1)
+# 深拷贝
+words2 = copy.deepcopy(words)
+words[2][0] = 1
+print(words2)
+```
+
+# 3. 元组
+
+元组和列表很像，都是用来保存多个数据
+
+使用()来表示元组
+
+元组和列表的区别在于列表是可变的，而元组是不可变数据类型
+
+和列表一样，元组也是一个有序的存储数据的容器，可以通过下标来获取元素
+
+```python
+words = ["hello", "good", "today", "hadoop"]
+nums = (9, 4, 3, 1, 7, 6)
+print(nums[3])
+# nums[3] = 49 元组不可变，这里会报错
+print(nums.index(7))
+print(nums.count(9))
+# 特殊情况：如何表示只有一个元素的元组？
+ages = (18)
+print(type(ages))  # <class 'int'>
+# 如果元组里只有一个元组，需要在元素后面添加一个逗号
+ages2 = (18,)
+print(type(ages2))  # <class 'tuple'>
+
+# 列表转元组
+print(tuple(words))
+
+# 元组转列表
+print(list(nums))
+```
+
+## 3.2 元组的合并
+
+使用`+` 进行合并
+
+
+
+# 4. 字典
+
+字典不仅可以保存值，还能对值进行描述
+
+使用大括号来表示一个字典，不仅有值value还有值的描述key
+
+字典里的数据都是以键值对key-value的形式保留的
+
+key和value之间使用冒号连接
+
+```python
+person = {"name": "张三", "age": 18}
+```
+
+## 4.1 字典的使用注意事项
+
+1. 字典里的key不允许重复，如果重复，后一个会覆盖前一个
+
+   ```python
+   person = {"name": "张三", "age": 18, "height": 190, "age": 22}
+   print(person)# {'name': '张三', 'age': 22, 'height': 190}
+   ```
+
+   
+
+2. 字典里的value可以是任意数据类型，但是key只能使用不可变数据类型，一般使用字符串
+
+3. 字典的数据在保存时是无序的，不能通过下标来查
+
+## 4.2 合并两个字典
+
+```python
+person1 = {"name": "张三", "age": 18}
+person2 = {"height": 190, "addr": "深圳"}
+person1.update(person2)
+print(person1) # {'name': '张三', 'age': 18, 'height': 190, 'addr': '深圳'}
+```
+
+## 4.3 字典的遍历
+
+```python
+# 字典遍历
+
+person = {"name": "张三", "age": 18, "height": 190, "addr": "深圳"}
+# 第一种遍历方式
+for x in person:
+    print(x, "=", person[x])
+# 第二种方式：获取到所有的key，然后遍历key，根据key获取value
+keys = person.keys()
+print(type(keys))
+for x in person.keys():
+    print(x, "=", person[x])
+
+# 第三种遍历方式：获取到所有的vlaue
+for v in person.values():
+    print(v)
+
+# 第四种遍历方式
+print("-----------")
+print(person.items())
+for item in person.items():
+    print(item[0], "=", item[1])
+# 第四种方式的等价方式
+print("-----------")
+for k, v in person.items():
+    print(k, "=", v)
+   # name = 张三
+   # age = 18
+   # height = 190
+   # addr = 深圳
+
+```
+
+## 4.4 字典推导式
+
+```python
+# 字典推导式
+dict1 = {"a": 100, "b": 200, "c": 300}
+dict2 = {}
+for k, v in dict1.items():
+    dict2[v] = k
+print(dict2)  # {100: 'a', 200: 'b', 300: 'c'}
+# 字典推导式
+dict3 = {v: k for k, v in dict1.items()}
+print(dict3) # {100: 'a', 200: 'b', 300: 'c'}
+```
+
+# 5. 集合 set
+
+集合是不重复的、无序
+
+可以使用{}或者set来表示
+
+{}有两种意思：字典、集合
+
+{}里放的是键值对，是字典，放的是单个值，是集合
+
+注意空集合的表示方式不是{},{}表示的是空字典
+
+## 5.1 集合支持的算术运算符 
+
+```python
+names1 = {"zhangsan", "lisi"}
+names2 = {"zhangsan", "wangwu", "zhaoliu"}
+# 求差集
+print(names2 - names1) # {'zhaoliu', 'wangwu'}
+```
+
+## 
+
+# 6. 函数
+
+## 6.1 局部变量和全局变量
+
+内置函数globals()可以查看全局变量，locals()可以查看局部变量
+
+如果想在函数内部修改全局变量的值需要按照类似如下方式修改，其中word是全局变量
+
+![image-20210303203326935](./images/1.png)
+
+在python里只有函数能够分隔作用域
+
+## 6.2 缺省参数
+
+```python
+def say_hello(name, age, city="深圳"):
+    '''
+    say hello
+    :param name:
+    :param age:
+    :param city: 缺省参数，只能放在参数列表中最后一个位置
+    :return:
+    '''
+    print("大家好，我是{},我今年{}岁了，我来自{}".format(name, age, city))
+
+
+# 如果没有传递缺省参数的值，就是用缺省参数的默认值
+say_hello("jack", 19)  # 大家好，我是jack,我今年19岁了，我来自深圳
+# 如果传递了缺省参数的值，就是用传进来的值
+say_hello("jack", 19, "北京")  # 大家好，我是jack,我今年19岁了，我来自北京
+# 可以部分是用变量赋值的形式传参
+# 如果同时有位置参数和关键字参数，关键字参数一定要放在位置参数的后面，而且位置参数必须在首位
+say_hello("jerry", age=24, city="南京")# 大家好，我是jerry,我今年24岁了，我来自南京
+```
+
+### 6.3 可变参数
+
+```python
+def add(a, b, *args,mul=1,**kwargs):
+    '''
+
+    :param a:
+    :param b:
+    :param args: 可变位置参数
+    :param mul:
+    :param kwargs:可变的关键字参数，以字典的形式保存
+    :return:
+    '''
+    return a + b
+
+
+add(1, 2, 3, 4, 5, 6)
+```
+
+## 6.4 函数三要素
+
+函数名、参数、返回值
+
+python里不允许函数重名，如果重名了，后一个函数会覆盖前一个函数
+
+python里函数名也可以理解为一个变量名
+
+
+
+## 6.5 递归函数
+
+
+
+## 6.6 匿名函数
+
+除了使用def 关键字定义一个函数以外，我们还能用lambda表达式定义一个函数
+
+调用匿名函数的两种方式：
+
+1. 给匿名函数定义一个名称(很少这样使用)
+2. 把这个函数当做参数传给另一个函数使用(使用场景比较多)
+
+### 6.6.1 sort方法中使用匿名函数
+
+```python
+students = [
+    {"name": "zhangsan", "age": 18, "score": 98, "height": 180},
+    {"name": "lisi", "age": 21, "score": 97, "height": 185},
+    {"name": "jack", "age": 22, "score": 100, "height": 175},
+    {"name": "tony", "age": 23, "score": 90, "height": 176},
+    {"name": "henry", "age": 20, "score": 95, "height": 172},
+]
+
+
+def cmp(ele):
+    # print(ele)
+    # 通过返回值告诉排序函数根据哪个字段进行排序
+    return ele["height"]
+
+
+# 需要传入key，指定比较规则
+# students.sort(key=cmp)
+# 上面的写法使用匿名函数的写法如下
+students.sort(key=lambda ele: ele["height"])
+print(students)  # TypeError: '<' not supported between instances of 'dict' and 'dict'
+```
+
+### 6.6.2 filter方法中使用匿名函数
+
+```python
+# filter方法中使用匿名函数
+# filter:对可迭代对象进行过滤
+ages = [12, 23, 30, 17, 16, 22, 19]
+# 两个参数：第一个是函数，第二个是可迭代对象
+res = filter(lambda ele: ele > 19, ages)
+
+for i in res:
+    print(i)
+```
+
+### 6.6.3 map方法中使用匿名函数
+
+```python
+# map中匿名函数的使用
+ages = [12, 23, 30, 17, 16, 22, 19]
+# 把列表中的每个元素都加2
+res = map(lambda ele: ele + 2, ages)
+print(list(res))
+```
+
+### 6.6.4 reduce方法中使用匿名函数
+
+```python
+from functools import reduce
+
+# reduce以前是一个内置函数
+# 内置函数和内置类都在buildins.py里
+scores = [100, 89, 76, 87]
+print(reduce(lambda ele1, ele2: ele1 + ele2, scores))
+
+students = [
+    {"name": "zhangsan", "age": 18, "score": 98, "height": 180},
+    {"name": "lisi", "age": 21, "score": 97, "height": 185},
+    {"name": "jack", "age": 22, "score": 100, "height": 175},
+    {"name": "tony", "age": 23, "score": 90, "height": 176},
+    {"name": "henry", "age": 20, "score": 95, "height": 172},
+]
+
+
+def bar(x, y):
+    return x + y["age"]
+
+
+# 计算年龄总和
+# print(reduce(bar, students, 0))
+# 使用匿名函数实现上面的代码
+print(reduce(lambda x, y: x + y["age"], students, 0))
+```
+
+## 6.7 内置函数的总结
+
+### 6.7.1 数学相关的内置函数
+
+ 1. abs
+
+    取绝对值
+
+	2. divmod
+
+    求两个数相除的商和余数
+
+	3. max
+
+    求最大数
+
+	4. min
+
+    求最小数
+
+	5. pow
+
+    幂运算
+
+	6. round
+
+    四舍五入保留到指定小数位
+
+	7. sum
+
+    用来求和
+
+
+
+### 6.7.2 可迭代对象相关的方法
+
+1. all
+
+   传入的可迭代对象中所有的元素转换为bool类型后都为True才返回True，否则返回False
+
+2. any
+
+   传入的可迭代对象中存在元素转换为bool类型后都为True才返回True，否则返回False
+
+3. len
+
+   获取长度(元素个数)
+
+4. iter
+
+   获取可迭代对象的迭代器
+
+5. next
+
+   for... in 的本质就是调用迭代器的next()方法
+
+
+
+### 6.7.3 转换相关的方法
+
+1. bin
+
+   将数字转为二进制
+
+2. chr
+
+   将字符编码转换称为对应的字符，例如：chr(97) ==> a
+
+3. ord
+
+   将字符转换成对应的编码 例如：ord("a") ==> 97
+
+4. eval
+
+   执行字符串里的python代码
+
+5. oct
+
+   将数字转为八进制
+
+6. hex
+
+   将数字转换为十六进制
+
+### 6.7.4 dir
+
+列出对象所有的属性和方法
+
+### 6.7.5 exit
+
+以指定的退出码结束程序
+
+### 6.7.6 变量相关
+
+1. globals
+
+   用来查看所有的全局变量
+
+2. locals
+
+   用来查看所有的局部变量
+
+### 6.7.7 help
+
+用来查看帮助文档
+
+### 6.7.8 id
+
+获取变量的内存地址
+
+### 6.7.9 输入输出相关
+
+1. print
+
+   打印
+
+2. input
+
+   接收用户输入
+
+### 6.7.10 判断对象相关的方法
+
+1. isinstance
+
+   判断一个对象是否是由一个类创建出来的
+
+2. issubclass
+
+   判断一个类是否是另一个类的子类
+
+### 6.7.11 open
+
+打开一个文件
+
+### 6.7.12 repr
+
+将传入的参数以字符串的形式显示	
+
+## 6.8 高阶函数
+
+1. 一个函数作为另一个函数的返回值
+
+   ```python
+   def test():
+       print("我是test函数")
+       return "hello"
+   
+   
+   def demo():
+       print("我是demo函数")
+       return test()
+   
+   
+   def bar():
+       print("我是bar函数")
+       return test()
+   
+   
+   a = bar()
+   print(a)
+   x = demo()
+   print(x)
+   ```
+
+   
+
+2. 一个函数作为另一个函数的参数
+
+   sort/filter/map/reduce lambda表达式的使用
+
+3. 函数内部定义一个函数
+
+   ```python
+   # 高阶函数
+   def outer():
+       m = 100
+   
+       def inner():
+           n = 90
+           print("我是inner函数")
+   
+       print("我是outer函数")
+       # 注意下面这行代码的inner后面不要加括号
+       return inner
+   
+   outer()()
+   ```
+
+   
+
+## 6.9 闭包
+
+闭包是由函数及其相关的引用环境组合而成的实体(即：闭包=函数块+引用环境)
+
+```python
+# 闭包
+def outer():
+    x = 10  # 局部变量
+
+    def inner():
+        y = x + 1
+
+    return inner
+```
+
+如果在一个内部函数里，对在外部作用域(但不是全局作用域)的变量进行引用，那么内部函数就被认为是闭包(closure)
+
+## 6.10 装饰器
+
+```python
+import time
+
+
+# 装饰器
+def cal_time(fn):
+    def inner():
+        start = time.time()
+        fn()
+        end = time.time()
+        print("代码耗时", end - start)
+
+    return inner
+
+
+@cal_time  # 1.调用cal_time 2. 把被装饰的函数传给fn 3.再次调用demo已经不是原来的demo,而是cal_time的返回值inner
+def demo():
+    x = 0
+    for i in range(1, 100000):
+        x += i
+    print(x)
+
+
+demo()
+```
+
+# 7. 导入模块
+
+模块：在python里一个py文件就可以理解为一个模块
+
+不是所有的Py文件都能作为一个模块来导入，如果想要一个py文件能够被导入，模块的名字必须遵循命名规则
+
+Python为了方便我们开发，提供了很多内置模块
+
+```python
+# 1. 使用import 模块名直接导入一个模块
+import time
+
+# 导入这个模块以后，就可以使用这个模块里的方法和变量
+print(time.time())
+# 2.from 模块名 import 函数名,导入一个模块里的方法或者变量
+from random import randint
+
+# 生成[0,2]的随机数
+randint(0, 2)
+# 3.from 模块名 import * 导入这个模块里的所有方法和变量
+from math import *
+
+print(pi)
+# 4.导入一个模块，并起别名
+import datetime as dt
+
+print(dt.MAXYEAR)
+
+# 5.from 模块名 import 函数名 as 别名
+from copy import deepcopy as dp
+
+dp(["hello", [1, 2, 3], "good"])
+```
+
+使用from <module_name> import * 导入这个模块里"所有"的变量和函数，本质是读取模块里的`__all__`属性,看这个属性里定义了哪些变量和函数，如果模块里没有定义`__all__`才会导入所有不以`_`开头的变量和函数
+
+以一个下划线开始的变量，建议只在本模块里使用
+
+
+
+`__name__`:当直接运行当前py文件的时候，值是`__main__`,如果这个py文件作为一个模块导入的时候，值是文件名
+
+这个可以用来不让自己对外提供的模块里的测试代码在别人调用自己的模块时执行使用
+
+![image-20210304205822451](./images/3.png)
+
+
+
+## 7.1 常见的内置模块
+
+### 7.1.1 os模块
+
+提供了调用操作系统里的方法
+
+```python
+import os
+
+print(os.name)
+print(os.sep)
+#  os里的path常用
+# abspath 获取文件的绝对路径
+print(os.path.abspath("import_demo2.py"))
+#  判断是否是文件夹
+print(os.path.isdir("import_demo2.py"))
+# 判断是否是文件
+print(os.path.isfile("import_demo2.py"))
+# 判断是否存在
+print(os.path.exists("import_demo2.py"))
+
+file_name = "2021.03.04.demo.py"
+print(os.path.splitext(file_name))
+```
+
+### 7.1.2 sys模块
+
+```python
+# sys 系统相关的功能
+import sys
+# 结果是一个列表，表示查找模块的路径
+print(sys.path)
+
+# sys.stdin 接收用户的输入，和input相关
+# sys.stdout 可以设置默认输出位置
+# sys.stderr 可以设置错误信息的默认输出位置
+```
+
+### 7.1.3 math模块
+
+```python
+import math
+
+# 求阶乘
+print(math.factorial(6))
+# 向下取整
+print(math.floor(12.98))
+# 向上取整
+print(math.ceil(15.0001))
+# 幂运算
+print(math.pow(2, 10))
+print(math.sin(math.pi / 6))
+print(math.cos(math.pi / 3))
+print(math.tan(math.pi / 2))
+```
+
+### 7.1.4 random模块
+
+```python
+import random
+
+# randint(a,b) 用来生成[a,b]之间的整数
+print(random.randint(2, 9))
+# 生成[0,1)的随机浮点数
+print(random.random())
+# 生成[a,b)随机整数
+print(random.randrange(2, 9))
+
+# choice 用来在可迭代对象里随机抽取一个数据
+print(random.choice(["张三", "李四", "王五", "赵丽", "jack"]))
+# sample用来在可迭代对象里随机抽取n个数据
+print(random.sample(["张三", "李四", "王五", "赵丽", "jack"], 2))
+```
+
+### 7.1.5 calendar模块
+
+```python
+import calendar  # 日历模块
+
+# 设置每一周的第一天是周几
+calendar.setfirstweekday(calendar.SUNDAY)
+# 打印2021年的日历
+print(calendar.calendar(2021))
+# 判断是否是闰年
+print(calendar.isleap(2021))
+# 判断两个间隔年份之间由多少个闰年
+print(calendar.leapdays(1996, 2010))
+# 打印某一年某个月份的日志
+print(calendar.month(2021, 3))
+```
+
+# 8. pip
+
+pip install <package_name> 用来下载一个第三方的模块
+
+pip uninstall  <package_name> 用来删除第三方模块
+
+pip list 用来列出当前环境安装了哪些模块
+
+pip freeze 用来列出当前环境安装了的模块名和版本号
+
+pip freeze > file_name 将安装的模块名和版本号重定向到指定的文件
+
+pip install -r file_name 读取文件里模块名和版本号并安装
+
+指定中国的代理
+
+```bash
+pip install <package_name> -i https://pypi.douban.com/simple
+```
+
+![image-20210304202742785](./images/2.png)
+
+
+
+# 9. 面向对象
+
+## 9.1 基本语法
+
+```python
+#  class 类名：类名需要遵守大驼峰命名，第一个单词的首字母大写
+class Student(object):
+    def __init__(self, name, age, height):  # 在__init__方法里，以参数的形式定义属性
+        self.name = name
+        self.age = age
+        self.height = height
+
+    #     行为定义为一个个函数
+    def run(self):
+        print("正在跑步")
+
+    def eat(self):
+        print("正在吃东西")
+
+
+# Student() 会自动调用 __init__方法
+# 使用Student类创建了两个实例对象s1 s2
+# s1和s2都会有name,age,height属性,同时都有run和eat方法
+s1 = Student("小明", 18, 175)
+s2 = Student("小美丽", 17, 165)
+
+# 根据业务逻辑，让不同的对象执行不同的行为
+s1.run()
+s1.eat()
+
+s2.eat()
+```
+
+## 9.2 self语句的使用
+
+```python
+class Student(object):
+    def __init__(self, x, y):
+        self.name = x
+        self.age = y
+
+    def say_hello(self):
+        print("大家好，我是", self.name)
+
+
+# Student("张三",18)到底做了什么?
+# 1. 调用__new__方法，用来申请内存空间
+# 2. 调用__init__方法，并让self指向申请好的那段内存空间，填充数据
+# 3. 变量s1也指向创建好的那段内存空间
+s1 = Student("张三", 18)
+s2 = Student("jack", 21)
+s2.say_hello()
+```
+
+## 9.3 __slots__属性
+
+```python
+class Student(object):
+    __slots__ = ("name", "age", "city")  # 这个属性直接定义在类里，是一个元组，用来规定对象可以存在的属性
+
+    def __init__(self, x, y):
+        self.name = x
+        self.age = y
+
+    def say_hello(self):
+        print("大家好，我是", self.name)
+
+
+# Student("张三",18)到底做了什么?
+# 1. 调用__new__方法，用来申请内存空间
+# 2. 调用__init__方法，并让self指向申请好的那段内存空间，填充数据
+# 3. 变量s1也指向创建好的那段内存空间
+s = Student("张三", 18)
+# 没有的属性，会报错
+# print(s.height)
+
+# 直接使用等号给一个属性赋值
+# 如果这个属性以前不存在，会给对象添加一个新的属性
+# 动态属性
+s.city = "上海"  # 给对象添加了city属性
+print(s.city)
+
+# 如果这个属性以前存在，会修改这个属性对应的值
+s.name = "jack"
+print(s.name)
+```
+
+## 9.3 魔法方法
+
+```python
+import time
+
+
+# 魔法方法，也叫魔术方法，是类里的特殊的一些方法
+# 特点：
+# 1. 不需要手动调用，会在合适的时机自动调用
+# 2. 这些方法都是使用__开始，使用__结束
+# 3. 方法名都是系统规定好的，在合适的时机自己调用
+
+
+class Person(object):
+    # 在创建对象时会自动调用这个方法
+    def __init__(self, name, age):
+        print("__init__方法被调用了")
+        self.name = name
+        self.age = age
+
+    # 当对象被销毁时会自动调用该方法
+    def __del__(self):
+        print("__del__方法被调用了")
+
+    def __repr__(self):
+        return "hello"
+
+    def __str__(self):
+        return "姓名:{},年龄:{}".format(self.name, self.age)
+
+    def __call__(self, *args, **kwargs):
+        # print("__call__方法被调用了")
+        #         args是一个元组，保存了(1,2)
+        print("args={},kwargs={}".format(args, kwargs))
+        fn = kwargs['fn']
+        return fn(args[0], args[1])
+
+
+p = Person("张三", 19)
+# time.sleep(10)
+# 如果不做任何修改，直接打印一个对象，是文件的__name__.类型 内存地址
+# 当打印一个对象的时候，会调用这个对象的__str__或者__repr__方法
+# 如果两个方法都写了，会走__str__
+print(p)  # <__main__.Person object at 0x10eb1f9e8>
+# print(repr(p))  # 调用内置函数repr,会触发对象的__repr__方法
+# print(p.__repr__()) # 魔法方法一般不手动调用
+
+# p()  # 对象名() 是调用对象的__call__方法，如果__call__方法没写会报错
+# 可以传入参数
+print(p(1, 2, fn=lambda x, y: x + y))
+```
+
+## 9.4 运算符相关的魔法方法
+
+```python
+# 运算符相关的魔法方法
+class Person:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+    def __eq__(self, other):
+        return self.name == other.name and self.age == other.age
+
+    def __ne__(self, other):
+        return "hello"
+
+    def __gt__(self, other):
+        return self.age > other.age
+
+    def __ge__(self, other):  # 使用>=运算符时会自动调用
+        pass
+
+    def __le__(self, other):  # <=
+        pass
+
+    def __lt__(self, other):  # <
+        pass
+
+    def __add__(self, other):  # +
+        return self.age + other.age
+
+    def __sub__(self, other):
+        return self.age - other.age
+
+    def __mul__(self, other):  # *
+        pass
+
+    def __truediv__(self, other):  # 做除法运算 /
+        pass
+
+    def __pow__(self, power, modulo=None):
+        pass
+
+    def __int__(self):  # 调用int进行类型转换的时候会调用该方法
+        pass
+
+    def __float__(self):  # 调用float进行类型转换的时候会调用该方法
+        pass
+
+
+p1 = Person("张三", 19)
+p2 = Person("张三", 19)
+p3 = Person("李四", 20)
+print(p1 is p2)
+# ==运算符本质是调用对象的__eq__方法，获取__eq__的返回结果
+
+print(p1 == p2)  # True
+# != 本质是调用__ne__方法或者__eq__方法取反 not equal
+print(p1 != p2)  # False
+
+# 直接运行会报错
+print(p1 > p3)
+print(p1 + p2)
+print(p1 - p2)
+
+# 转换成字符串。默认会转换成为类型+内存地址
+# str()将对象转换成字符串，会自动调用__str__方法
+print(str(p1))  # <__main__.Person object at 0x110068080>
+```
+
+## 9.5 内置属性
+
+```python
+class Person(object):
+    __slots__ = ("name", "age", "__dict__")
+    '''
+    这是一个人类
+    '''
+
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+    def eat(self):
+        print(self.name + "正在吃饭")
+
+
+p = Person("张三", 18)
+# 查看对象所有的属性和行为
+print(dir(p))
+print(p.__class__)  # <class '__main__.Person'>
+# 把对象属性和值转换成为一个字典
+print(p.__dict__)  # {'name': '张三', 'age': 18}
+print(p.__dir__())  # 等价于dir(p)
+print(p.__doc__)  # 也可以直接使用类名调用
+print(Person.__doc__)
+# print(range.__doc__)
+print(p.__module__)  # 模块名
+print(p.__slots__)
+```
+
+## 9.6 把对象当做字典使用
+
+
+
+# 99. Python2和Python3的区别
+
+## 99.1 八进制数据的表示方式
+
+Python2里，`0o`开始的数字是八进制，以0开始的数字也是八进制
+
+Python3里，八进制只能是`0o`开头
+
+## 99.2 除法
+
+Python2里两个整数相除得到的结果是一个整数，例如 10 / 3 = 3
+
+Python3里两个整数相除得到的结果是一个浮点数 例如 10 / 3 = 3.33333
+
+
+
+## 99.3 比较运算符
+
+Python2里可以使用`<>`和`！=`来表示不等
+
+Python3里只能使用`!=`
+
+## 99.4 filter
+
+filter在python2里是一个内置函数，在python3里变成了一个内置类
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 100. pip
+
+```bash
+# 查看pip的版本号
+pip3 -V
+# 查看pip管理的包
+pip3 list
+# 安装软件
+pip3 install 软件名称
+# 安装指定版本的软件，如果不指定版本，默认装最新的
+pip3 install 软件名称==版本号
+# 卸载软件
+pip3 uninstall 软件名称
+```
+
