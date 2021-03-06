@@ -1137,6 +1137,399 @@ print(p.__slots__)
 
 ## 9.6 把对象当做字典使用
 
+```python
+class Person(object):
+
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+    def __setitem__(self, key, value):
+        # print("__setitem__方法被调用,key={},value={}".format(key, value))
+        self.__dict__[key] = value
+
+    def __getitem__(self, item):
+        return self.__dict__[item]
+
+
+p = Person("张三", 18)
+# 将对象转换称为字典
+print(p.__dict__)  # {'name': '张三', 'age': 18}
+
+# 不能直接把一个对象当做字典来用,需要重写__setitem__方法
+p["name"] = "jack"  # []语法会调用对象的__set_item__方法
+print(p.__dict__)  # {'name': '张三', 'age': 18}
+print(p["name"])  # 会调用__getitem__方法
+```
+
+## 9.7 对象属性和类属性
+
+```python
+class Person(object):
+    type = "人类"  # 这个属性定义在类里，函数之外，我们称之为类属性
+
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+
+# p是通过Person创建出来的实例对象
+# name和age是对象属性，在__init__方法里以参数的形式定义的，是每个实例对象都会单独保存一份的属性
+# 每个实例对象之间的属性没有关联，互不影响
+p1 = Person("张三", 18)
+p2 = Person("李四", 19)
+
+# 类属性可以通过对象和实例对象获取
+print(Person.type)  # 通过类对象获取类属性
+print(p1.type)  # 通过实例对象来获取类属性
+
+# 类属性只能通过类对象来修改，实例对象无法修改类属性
+p1.type = "human"
+print(p1.type)  # 此处并没有修改类属性，只是给p1加了一个type属性
+print(Person.type)
+
+Person.type = "宇宙超人"
+print(p2.type)  # 类属性已经修改
+print(Person.type)
+```
+
+## 9.8 私有属性和方法
+
+```python
+import datetime
+
+
+class Person:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+        # 私有属性 以两个_开始
+        self.__money = 1000
+
+    def test(self):
+        self.__money += 10  # 在这里可以访问私有属性
+
+    def get_money(self):
+        print("{}查询了余额".format(datetime.datetime.now()))
+        return self.__money
+
+    def set_money(self, mon):
+        if type(mon) != int:
+            print("格式非法！")
+            return
+        print("{}修改了余额".format(datetime.datetime.now()))
+        self.__money = mon
+
+    def __demo(self):  # 以两个下划线开始的函数，是私有函数，在外部无法调用
+        print("我是__demo,name={}".format(self.name))
+
+
+p = Person("张三", 18)
+# p.__money # 不能直接获取到私有变量
+
+# 获取私有变量的方式：
+# 方式1. 使用 对象._类名_私有变量名获取
+print(p._Person__money)  # 通过这种方式也能获取到私有属性
+
+p.test()
+print(p._Person__money)
+
+# 方式2. 定义get和set方法来获取
+print(p.get_money())
+p.set_money("hello")
+print(p.get_money())
+# p.__demo() # 调用私有函数报错，但是可以通过下面这种方式调用私有函数
+p._Person__demo()
+# 方式3. 使用property()来获取
+```
+
+## 9.9 类方法和静态方法
+
+```python
+class Calcultor(object):
+    # 静态方法
+    @staticmethod
+    def add(a, b):
+        return a + b
+
+    @staticmethod
+    def minus(a, b):
+        return a - b
+
+
+print(Calcultor.add(1, 4))
+print(Calcultor.minus(9, 2))
+
+
+class Person:
+    type = "human"
+
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+    # eat对象方法，可以直接使用实例对象.方法名(参数)调用
+    # 使用对象名.方法名(参数)调用的方式，不需要传递self
+    # 会自动将对象传递给self
+    # 对象方法还可以使用 类对象来调用
+    # 类名.方法名()
+    # 这种方式不会自动给self传参，需要手动的指定
+    def eat(self, food):  # 对象方法有一个参数self,指的是实例对象
+        print(self.name + "正在吃" + food)
+
+    # 如果一个方法里没有用到实例对象的任何属性，可以将这个方法定义成static
+    @staticmethod
+    def demo():  # 默认的方法都是对象方法
+        print("hello")
+
+    @classmethod
+    def test(cls):  # 如果这个函数只用到了类属性，我们可以定义成一个类方法
+        # 类方法有一个参数cls,也不需要手动传参，会自动传参
+        # cls指定是类对象  cls == Person > True
+        print("yes")
+
+
+p = Person("张三", 18)
+p2 = Person("李四", 19)
+# 实例对象在调用方法时，不需要传self,会自动的把实例对象传递给self
+p.eat("烧鸡")  # 直接使用实例对象调用方法
+
+print(p.eat)
+print(p2.eat)
+print(p.eat is p2.eat)
+
+print(Person.eat)
+Person.eat(p2, "西红柿鸡蛋盖饭")
+
+# 静态方法
+Person.demo()
+p.demo()
+
+# 类方法可以使用实例对象和类对象调用
+p.test()
+Person.test()
+```
+
+## 9.10 单例模式
+
+```python
+class Singleton(object):
+    __instance = None  # 类属性
+    __is_first = True
+
+    def __init__(self, a, b):
+        if self.__is_first:
+            self.a = a
+            self.b = b
+            self.__is_first = False
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance is None:
+            cls.__instance = object.__new__(cls)  # 申请内存，创建一个对象，并把对象的类型设置为cls
+
+        return cls.__instance
+
+
+# 如果不重写 __new__方法，会调用object的__new__方法
+# object的__new__方法会申请内存
+# 如果重写了__new__，需要手动申请内存
+s1 = Singleton("呵呵呵", "嘿嘿嘿")
+s2 = Singleton("哈哈哈", "噗噗噗")
+print(s1 is s2)
+print(s2.a, s2.b)
+```
+
+## 9.11 继承的基本使用
+
+```python
+# 继承的基本使用
+class Animal(object):
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+    def sleep(self):
+        print(self.name + "正在睡觉")
+
+
+class Dog(Animal):
+    def bark(self):
+        print(self.name + "正在叫")
+
+
+class Student(Animal):
+    def study(self):
+        print(self.name + "正在学习")
+
+
+# Dog()调用__new__方法，再调用__init__方法
+# Dog里没有__new__方法，会查看父类是否重写了__new__方法
+# 父类里也没有重写__new__方法，查找父类的父类，找到了object
+d1 = Dog("大黄", 3)
+print(d1.name)  # 父类里定义的属性，子类可以直接使用
+d1.sleep()  # 父类的方法子类实例可以直接调用
+d1.bark()
+
+s1 = Student("小明", 18)
+s1.sleep()
+s1.study()
+```
+
+## 9.12 继承的特点
+
+```python
+class A(object):
+    def demo_a(self):
+        print("我是A里面的demo_a")
+
+
+class B(object):
+    def demo_b(self):
+        print("我是B类里的方法demo_b")
+
+
+# python里允许多继承
+class C(A, B):  # 如果不写父类，python3以后默认继承object
+    pass
+
+
+c = C()
+c.demo_a()
+c.demo_b()
+
+# 如果两个不同的父类有同名方法，有一个类属性可以查看方法的调用顺序
+print(C.__mro__)# (<class '__main__.C'>, <class '__main__.A'>, <class '__main__.B'>, <class 'object'>)
+```
+
+## 9.13 私有属性继承的特点
+
+```python
+class Animal:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+        self.__money = 1000
+
+    def eat(self):
+        print(self.name + "正在吃东西")
+
+    # 父类的私有方法不会被子类继承，但是子类可以通过子类对象名._父类名__私有方法名()
+    def __test(self):
+        print("我是Animal类里的test方法")
+
+
+class Person(Animal):
+    pass
+
+
+p = Person("张三", 18)
+print(p.name)
+p.eat()
+```
+
+## 9.14 新式类和经典类
+
+1. 新式类
+
+   继承自object的类
+
+2. 经典类
+
+   不继承自object的类
+
+在python2里，如果不手动指定一个类的父类是object,这个类就是一个经典类
+
+python3里不存在经典类，默认都是新式类
+
+## 9.15 面向对象中的运算符
+
+```python
+class Person:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+
+class X:
+    pass
+
+
+class Y:
+    pass
+
+
+class Student(Person, X):
+    pass
+
+
+p1 = Person("张三", 18)
+p2 = Person("张三", 18)
+s = Student("jack", 20)
+# is是比较id(p1) 和 id(p2)
+print(p1 is p2)  # is 身份运算符用来比较两个对象是否是同一个对象
+
+# type(p1)获取的是类对象
+if type(p1) == Person:
+    print("p1是Person类创建的实例对象")
+
+# isinstance用来判断一个对象是否是由指定的类(或者父类)实例化出来的
+print(isinstance(s, Person))  # True
+print(isinstance(s, (Student, Y)))  # True  # 有一个满足就返回True
+
+# issubclass用来判断一个类是否是另一个类的子类
+print(issubclass(Student, (Person, X)))  # True ,可以传多个，传多个父类的话需要使用元组
+```
+
+## 9.16 子类重写父类方法
+
+```python
+class Person:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age
+
+    def sleep(self):
+        print(self.name + "正在睡觉")
+
+
+class Student(Person):
+    def __init__(self, name, age, school):
+        # 调用父类方法方式1
+        super().__init__(name, age)
+        # 调用父类方法方式2
+        # Person.__init__(name,age)
+        self.school = school
+
+    def study(self):
+        print(self.name + "正在学习")
+
+    def sleep(self):
+        print(self.name + "正在课间休息时睡觉")
+
+
+# 调用了父类的__init__方法
+s = Student("jerry", 20, "川田")
+# 调用了父类的sleep方法
+s.sleep()
+
+print(Student.__mro__)  # method resolution order
+
+# 1. 子类的实现与父类的实现完全不一样，子类可以选择重写父类的方法
+# 2. 子类在父类的基础上又有更多的实现
+```
+
+## 9.17 多态
+
+
+
+# 10. 文件操作
+
+## 10.1 文件的打开和关闭
+
+
+
+
+
 
 
 # 99. Python2和Python3的区别
@@ -1165,7 +1558,29 @@ Python3里只能使用`!=`
 
 filter在python2里是一个内置函数，在python3里变成了一个内置类
 
+## 99.5 新式类和经典类
 
+在python2里，如果不手动指定一个类的父类是object,这个类就是一个经典类
+
+python3里不存在经典类，默认都是新式类
+
+
+
+## 99.6 对中文的支持
+
+python2默认不支持中文，python3支持
+
+如果想让python2支持中文，需要在代码的最前面添加如下注释
+
+```python
+# -*-coding:utf8-*-
+```
+
+## 99.7 input语句
+
+python2里的input会把用户的输入当做代码，根据用户输入的内容确定类型，python2里的raw_input和python3里的input功能一致
+
+Python3直接接收用户的输入，所有的数据都是字符串类型，python3里不再支持raw_input
 
 
 
