@@ -1526,6 +1526,61 @@ print(Student.__mro__)  # method resolution order
 
 ## 10.1 文件的打开和关闭
 
+```python
+# python里使用open内置函数打开并操作一个文件
+# file:用来打开指定的文件(不是文件的名字，而是文件的路径)
+# mode:打开文件的模式,默认是r，只读
+# encoding:打开文件时的编码方式
+# 返回值是打开文件的对象
+file = open("xxx.txt")
+print(file.read())
+
+# 操作完成文件以后，关闭文件
+file.close()
+```
+
+## 10.2 文件的打开方式
+
+```python
+# mode指的是文件的打开方式
+# r:只读模式，默认,如果文件不存在会报错
+# w:写入模式，打开文件后只能写入，不能读取，如果文件存在，会覆盖文件，如果文件不存在，会创建
+# b:以二进制的形式打开文件
+# rb:以二进制读取
+# wb:以二进制写入
+# a:追加模式，如果文件不存在会创建文件
+# r+:可读写，文件不存在会报错
+# w+:可读写，文件不存在会创建，存在会覆盖
+
+
+# file = open("xxx.txt", "r")
+# print(file.read())
+# file.write("hello")
+
+# file = open("xxx.txt", "w")
+# file = open("yyy.txt", "w")
+
+# print(file.read()) # io.UnsupportedOperation: not readable
+# file.write("hello")
+
+file = open("xxx.txt", "rb")
+print(file.read())
+file.close()
+```
+
+## 10.3 文件的读取方式
+
+```python
+file = open("xxx.txt", encoding="utf8")
+# print(file.read()) #将所有数据读取出来
+
+# print(file.readline()) # 只读取一行
+# print(file.readlines()) #将所有行的数据读取出来，保存到一个列表里
+print(file.read(2)) # 数字表示读取的文件的长度
+```
+
+## 10.4 文件的拷贝功能
+
 
 
 
