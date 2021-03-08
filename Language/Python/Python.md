@@ -1581,7 +1581,307 @@ print(file.read(2)) # 数字表示读取的文件的长度
 
 ## 10.4 文件的拷贝功能
 
+```python
+import os
 
+# 文件拷贝
+file_name = input("请输入一个文件路径:")
+# 判断是否是文件
+if os.path.isfile(file_name):
+    # 打开旧文件
+    # 指定模式为rb的原因是如果读取的不是文本文件，会报错
+    old_file = open(file_name, "rb")
+    # 第一种方式 使用rpartition
+    # names = file_name.rpartition(".")
+    # new_file_name = names[0] + ".bak." + names[2]
+    # 第二种方式 使用splittext
+    names = os.path.splitext(file_name)
+    new_file_name = names[0] + ".bak" + names[1]
+    # 打开一个新文件用于写入
+    # 以二进制的形式读，以二进制的形式写
+    new_file = open(new_file_name, "wb")
+    while True:
+        content = old_file.read(1024)
+        # 把旧文件中的数据读取出来写入到新文件
+        new_file.write(content)
+        if not content:
+            break
+    new_file.close()
+    old_file.close()
+else:
+    print("您输入的文件不存在")
+```
+
+## 10.5 CSV文件的读写
+
+```python
+# csv文件的读写
+import csv
+
+# 打开一个文件
+file = open("demo2.csv", "w")
+writer = csv.writer(file)
+# writerow 每次写一行
+# writer.writerow(["name", "age", "score", "city"])
+# writer.writerow(["张三", "19", "90", "深圳"])
+# writer.writerow(["李四", "19", "90", "纽约"])
+
+
+# 也可以一次写多行
+# writer.writerows(
+#     [["name", "age", "score", "city"],
+#      ["张三", "19", "90", "深圳"],
+#      ["李四", "19", "90", "纽约"]]
+# )
+
+
+# csv文件的读取
+file = open("demo.csv", "r", encoding="utf8", newline="")
+reader = csv.reader(file)
+for data in reader:
+    print(data)
+file.close()
+```
+
+## 10.6 将数据写入到内存
+
+```python
+# 将数据写入到内存涉及到StringIO和BytesIO两个类
+from io import StringIO, BytesIO
+
+str_io = StringIO()
+# 把数据写入内存
+# str_io.write("hello")
+# str_io.write("good")
+
+# print(str_io.getvalue())
+
+print("yes", str_io)
+print("ok", str_io)
+print(str_io.getvalue())
+
+str_io.close()
+
+b_io = BytesIO()
+b_io.write("你好".encode("utf8"))
+print(b_io.getvalue().decode("utf8"))
+
+b_io.close()
+```
+
+## 10.7 标准输入&标准输出&错误输出
+
+```python
+import sys
+
+# sys.stdin 接收用户输入
+# sys.stdout 标准输出
+# sys.stderr 错误输出
+
+# stdin = sys.stdin
+# while True:
+#     content = stdin.readline()
+#     if content == '\n':
+#         break
+#     print(content)
+
+sys.stdout = open("stdout.txt", "w", encoding="utf8")
+print("hello")
+
+sys.stderr = open("stderr.txt", "w", encoding="utf8")
+print(1 / 0)
+```
+
+## 10.8 json的使用
+
+```python
+import json
+
+file = open("names2.txt", "w", encoding="utf8")
+# file.write("张三")
+# write时，只能写入字符串或者二进制
+# file.write(12)
+# 类似字典、列表、数字等都不能直接写入到文件里
+
+# 想要写入上述内容的话有两种方法：
+# 第一种方法:将数据转换成为字符串 使用repr/str 更多的情况是使用json
+# json的本质就是字符串，区别在于json里要使用双引号表示字符串
+# 第二种方法:将数据转换称为二进制 使用pickle模块
+
+names = ["张三", "tom", "jack", "lily"]
+# json里将数据持久化有两个方法:
+# dumps:将数据转换称为json字符串，不会将数据保存到文件里
+# dump: 将数据转换称为json字符串的同时写入到指定的文件
+# x = json.dumps(names, ensure_ascii=False)
+# file.write(x)
+json.dump(names, file, ensure_ascii=False)
+
+# json反序列化也有两个方法:
+# loads:将json字符串加载成为python里的数据
+# load:读取文件，把读取的内容加载成为python里的数据
+file.close()
+
+# 符合json规则的字符串
+x = '{"name":"张三","age":18}'
+p = json.loads(x)
+print(p, type(p))
+
+# load读取一个文件，并把文件里的json字符串加载称为一个对象
+file2 = open("names.txt", "r", encoding="utf8")
+y = json.load(file2)
+print(y)
+print(y[0])
+```
+
+## 10.9 pickle的使用
+
+```python
+# pickle:将python里任意的对象转换成为二进制
+import pickle
+import json
+
+# 序列化 dumps: 将python里的数据转换成为二进制 dump:将python数据转换成为二进制，同时保存到指定文件
+# 反序列化 loads:将二进制加载称为python里的数据 load:读取文件并将文件的内容加载成为二进制
+names = ["张三", "李四", "杰克", "亨利"]
+b_names = pickle.dumps(names)
+# print(b_names)
+
+file = open("names_bin.txt", "wb")
+file.write(b_names)
+file.close()
+
+file2 = open("names_bin.txt", "rb")
+
+x = file2.read()
+y = pickle.loads(x)
+print(y)
+
+file3 = open("names_bin2.txt", "wb")
+pickle.dump(names, file3)
+file2.close()
+file3.close()
+
+file4 = open("names_bin2.txt", "rb")
+load = pickle.load(file4)
+print(load)
+file4.close()
+
+
+class Dog(object):
+    def __init__(self, name, color):
+        self.name = name
+        self.color = color
+
+    def eat(self):
+        print(self.name + "正在吃东西")
+
+
+d = Dog("大黄", "白色")
+# 保存到文件里
+pickle.dump(d, open("dog.txt", "wb"))
+# 从文件里加载出来
+dd = pickle.load(open("dog.txt", "rb"))
+print(dd.name)
+dd.eat()
+
+# 使用json把一个对象序列化
+print(json.dumps(d.__dict__, ensure_ascii=False))
+```
+
+**pickle和json的区别？什么情况下使用json，什么情况下使用pickle？**
+
+pickle用来将数据原封不动的转换成为二进制，但是这个二进制只能在python里识别
+
+json只能保存一部分信息，作用是在不同的平台里传递数据，json里存储的数据都是基本的数据类型
+
+
+
+# 11. 异常
+
+## 11.1 异常处理
+
+```python
+def div(a, b):
+    return a / b
+
+
+try:
+    x = div(5, 0)
+    print("这里会打印吗")# 如果上一行代码出现异常，这行不会打印
+except Exception as e:
+    print("程序出错额")
+else:
+    print("计算的结果是", x)
+```
+
+## 11.2 异常的使用场景
+
+```python
+age = input("请输入您的年龄:")
+try:
+    age = float(age)
+except ValueError as e:
+    print("输入的不是数字")
+else:
+    if age > 18:
+        print("欢迎来到我的网站")
+    else:
+        print("未满18岁，请自动离开")
+```
+
+## 11.3 finally关键字的使用
+
+```python
+def demo(a, b):
+    try:
+        x = a / b
+    except ZeroDivisionError:
+        return "除数不能为0"
+    else:
+        return x
+    finally:
+        return "good"  # 如果函数里有finally,finally里的返回值会覆盖之前的返回值
+
+
+print(demo(1, 0))
+```
+
+## 11.4 with关键字的使用
+
+```python
+try:
+    with open("../16-file/xxx.txt", "r") as file:
+        file.read() #这里不需要再手动关闭文件，with关键字会帮助我们关闭文件
+
+except FileNotFoundError:
+    print("文件未找到")
+```
+
+## 11.5 自定义异常
+
+```python
+class LengthError(Exception):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __str__(self):
+        return "长度必须要在{}至{}之间".format(self.x, self.y)
+
+
+password = input("请输入您的密码：")
+m = 6
+n = 12
+if m <= len(password) <= n:
+    print("密码正确")
+else:
+    # 使用raise关键字抛出一个异常
+    raise LengthError(m, n)
+
+print("将密码保存到数据库")
+```
+
+# 12. 装饰器
 
 
 
