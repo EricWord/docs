@@ -1881,9 +1881,70 @@ else:
 print("将密码保存到数据库")
 ```
 
-# 12. 装饰器
+# 12. 装饰器(高级)
+
+```python
+# 高级装饰器:装饰器函数带参数
+def can_play(clock):
+    print("最外层函数被调用了，clock={}".format(clock))
+
+    def handle_action(fn):
+        def do_action(name, game):
+            if clock < 21:
+                fn(name, game)
+            else:
+                print("太晚了，不能玩游戏了")
+
+        return do_action
+
+    return handle_action
 
 
+@can_play(20)
+def play_game(name, game):
+    print(name + "正在玩" + game)
+
+
+play_game("张三", "王者荣耀")
+```
+
+
+
+# 13. 迭代器
+
+```python
+from collections.abc import Iterable
+
+
+class Demo:
+    def __init__(self, x):
+        self.x = x
+        self.count = -1
+
+    def __iter__(self):  # 只要重写了了__iter__方法就是一个可迭代对象
+        return self
+
+    def __next__(self):
+        self.count += 1
+        if self.count < self.x:
+            # 每一次for...in都会调用一次__next__方法，获取返回值
+            return self.count
+        else:
+            raise StopIteration  # 让迭代器停止
+
+
+d = Demo(100)
+print(isinstance(d, Iterable))
+
+# for ... in 循环的本质就是调用可迭代对象的__iter__方法，获取到这个方法的返回值
+# 这个返回值是一个迭代器对象，然后再调用这个对象的__next__方法
+for i in d:
+    print(i)
+```
+
+# 14.  生成器
+
+![image-20210308105311529](./images/4.png)
 
 
 
