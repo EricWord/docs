@@ -1946,6 +1946,492 @@ for i in d:
 
 ![image-20210308105311529](./images/4.png)
 
+# 15. 正则表达式
+
+```python
+# 正则表达式
+
+import re
+
+# 在正则表达式里，如果想要匹配一个\需要使用\\\\
+x = "hello\\nworld"
+# 第一个参数就是正则匹配规则
+# 第二个参数表示需要匹配的字符串
+# m = re.search("\\\\", x)
+# 还可以在字符串前面加 r,此时\\就表示\
+m = re.search(r"\\", x)
+# search 和 match返回的结果是一个Match类型的对象
+print(m)  # <re.Match object; span=(5, 6), match='\\'>
+```
+
+## 15.1 正则查找相关的方法
+
+1. match和search
+
+   共同点：
+
+   只对字符串查找一次，返回值类型都是re.Match对象
+
+   不同点：
+
+   match是从头开始匹配，一旦匹配失败就返回None,search是整个字符串匹配
+
+2. finditer
+
+   查找到所有的匹配数据放到一个可迭代对象里 
+
+3. findall
+
+   把查找到的所有字符串结果放到一个列表里
+
+4. fullmatch
+
+   完整匹配，字符串需要完全满足正则规则才会有结果，否则就是None
+
+```python
+# 正则查找相关的方法
+
+import re
+
+m = re.match(r"hello", "world hello good morning")
+print(m)
+m = re.search(r"hello", "world hello good morning")
+print(m)
+
+m2 = re.search("x", "sdgfjhsdlxxvsllxjlxjxgixguitxcvxgtix")
+print(m2)
+m3 = re.finditer("x", "sdgfjhsdlxxvsllxjlxjxgixguitxcvxgtix")
+print(m3)
+
+for t in m3:
+    print(t)
+
+print("-" * 10)
+m4 = re.findall("x", "sdgfjhsdlxxvsllxjlxjxgixguitxcvxgtix")
+print(m4)
+```
+
+## 15.2 re.Match的用法
+
+```python
+import re
+
+m = re.search(r"m.*a", "o3rjomjadas")
+# 匹配到的结果字符串的开始和结束下标
+print(m.span())
+# 获取匹配的字符串结果
+print(m.group())
+# group方法表示正则表达式的分组
+# 1.在正则表达式里使用()表示一个分组
+# 2.如果没有分组，默认只有一组
+# 3.分组的下标从0开始
+
+# groupdict作用是获取到分组组成的字典
+
+# (?P<name>表达式) 可以给分组起一个名字
+
+# 通过名字获取到的是一个字典
+# 通过下标获取到的匹配到的字符串
+```
+
+## 15.3 re.compile的用法
+
+```python
+import re
+
+# 可以直接调用re.search方法
+m = re.search(r"m.*a", "o3rjomjadas")
+print(m)
+r = re.compile(r"m.*a")
+x = r.search("o3rjomjadas")
+print(x)
+```
+
+## 15.4 正则修饰符
+
+```python
+import re
+
+# 正则修饰符是对正则表达式进行修饰
+# .表示除了换行以外的任意字符
+# re.S 让.匹配换行
+# re.I 忽略大小写
+m = re.search(r"m.*a", "o3rjomo\njadas", re.S)
+print(m)
+print("-" * 20)
+y = re.search(r"x", "good Xyz", re.I)
+print(y)
+# \w:表示的是字母数字和_
+# +:出现一次以上
+# $:以指定内容结尾
+# re.M 让$能够匹配到换行
+z = re.findall(r"\w+$", "i am boy\n you are girl\n he is man", re.M)
+print(z)
+```
+
+## 15.5 正则匹配规则
+
+```python
+import re
+
+# 正则表达式规则
+# 1.数字和字母都表示它本身
+re.search(r"x", "hello xyz")
+re.search(r"5", "r353720")
+# 2. 很多字母前面添加\会有特殊含义
+
+print(re.search(r"d", "good"))
+#  \d有特殊含义，不再表示字母d
+print(re.search(r"\d", "good"))
+print(re.search(r"\d", "goods8085823d"))
+
+# 3. 绝大多数标点符号都有特殊含义
+# re.search("+","1+2") 不能直接使用，+有特殊含义
+
+# 4. 如果想要使用+ ，需要加\
+m2 = re.search("\+", "1+2")
+print(m2)
+```
+
+### 15.5.1 标点符号的特殊含义
+
+```python
+import re
+
+# \s 表示任意的空白字符
+print(re.search(r"\s", "hello world"))
+# 换行
+print(re.search(r"\n", "hello\nworld"))
+# 制表符
+print(re.search(r"\t", "hello\tworld"))
+
+# \S 表示非空白字符
+print(re.search(r"\S", "\t\n   x"))
+
+# 标点符号的使用
+# ():用来表示一个分组
+# re.search(r"h()")
+
+# 正则匹配一个括号里的内容(需要使用\)
+m = re.search(r"\(.*\)", "(1+1)*3+5")
+print(m.group())
+
+# . 表示匹配除了换行以外的任意字符，如果想要匹配 . 需要使用 \.
+
+# []用来表示可选项,[x,y] 从x到y区间，包含x和y
+m2 = re.search(r"f[0-5]m", "pdsf6m")  # None
+print(m2)
+m3 = re.search(r"f[0-5]m", "pdsf3m")  # <re.Match object; span=(3, 6), match='f3m'>
+print(m3)
+# 匹配多个可选数字
+m4 = re.search(r"f[0-5]+m", "pdsf34354m")  # <re.Match object; span=(3, 10), match='f34354m'>
+print(m4)
+# 可以出现字母
+m5 = re.search(r"f[0-5a-d]m", "pdsfcm")  # <re.Match object; span=(3, 6), match='fcm'>
+print(m5)
+m6 = re.search(r"f[0-5a-dx]m", "pdsfxm")  # <re.Match object; span=(3, 6), match='fxm'>
+print(m6)
+
+print("-" * 20)
+# | 用来表示或者 和[]有一定的相似，但是有区别
+# 区别在于[]里的值表示的是区间，|就是可选值，可以出现多个值
+m7 = re.search(r"f(x|prz|t)m", "pdsfprzm")
+print(m7)
+
+# {}用来限定出现的次数
+# {n}:表示前面的元素出现n次
+m8 = re.search(r"go{2}d", "good")
+print(m8)
+# {n,}:表示前面的元素出现n次以上
+m9 = re.search(r"go{2,}d", "goooood")
+print(m9)
+# {,n}:表示前面的元素出现的次数≤n
+m10 = re.search(r"go{,3}d", "goood")
+print(m10)
+
+# *：表示前面的元素出现任意次数(0次以以上)，等价于{0,}
+print(re.search(r"go*d", "goood"))
+# +:表示前面的元素至少出现一次，等价于{1,}
+
+print(re.search(r"go+d", "god"))
+
+# ?:两种用法:
+# 1.规定前面的元素最多只能出现一次，等价于 {,1}
+# 2.将贪婪模式转换为非贪婪模式
+print(re.search(r"go?d", "gd"))
+print(re.search(r"go?d", "god"))
+
+# ^ 表示以指定的内容开头，$ 表示以指定的内容结尾
+print(re.search(r"^a.*i$", "gj\najafsjswdlgi\ndkdsk", re.M))
+```
+
+### 15.5.2 特殊字母的含义
+
+```python
+import re
+
+# 字母的特殊含义
+# \n表示换行 \t:表示一个制表符 \s:空白字符 \S:非空白字符
+# \d:表示数字，等价于[0-9]
+
+print(re.search(r"x\d+p", "x243p"))  # <re.Match object; span=(0, 5), match='x243p'>
+
+# \D:表示非数字，等价于[^0-9]
+# ^ 除了表示以指定的内容开始以外，在[]里还可以表示取反
+print("-" * 20)
+print(re.search(r"\D+", "he110"))
+print(re.search(r"[^0-9]+", "he110"))
+
+# \w:表示数字、字母、_以及中文  等价于[0-9a-zA-Z_]还有中文
+print(re.search(r"\w+", "hE110_X*.+-"))
+print(re.findall(r"\w+", "大,家,好"))  # ['大', '家', '好']
+
+# \W: \w取反
+print(re.findall(r"\W+", "hE110_X*.+-"))
+```
+
+### 15.5.3 正则表达式练习
+
+```python
+import re
+
+# 正则表达式练习
+# 判断用户输入的内容是否是数字，如果是数字转换成为数字类型
+num = input("请输入一个数字:")
+if re.fullmatch(r"\d+(\.?\d+)?", num):
+    print("是个数字")
+    print(float(num))
+else:
+    print("不是一个数字")
+```
+
+
+
+### 15.5.4 正则替换
+
+```python
+import re
+
+# 替换
+# sub
+# 第一个参数是正则表达式
+# 第二个参数是新字符
+# 第三个参数是需要被替换的原来的字符串
+# 将数字全部替换成x
+print(re.sub(r"\d", "x", "sgdho7539hsfdl27r92h3h3l733h3lh"))
+p = "hello34good23"
+
+
+# 把字符串里的数字*2
+
+def test(x):
+    y = int(x.group(0))
+    y *= 2
+    return str(y)
+
+
+print("-" * 20)
+# sub内部在调用test方法时，会把每一个匹配到的数据以re.Match的格式传参
+print(re.sub(r"\d+", test, p))  # test函数是自动调用的
+```
+
+### 15.5.5 贪婪模式和非贪婪模式
+
+```python
+import re
+
+# 在python的正则表达式里，默认是贪婪模式，尽可能多的匹配
+
+# 在贪婪模式后面添加?可以将贪婪模式转换成为非贪婪模式
+
+m1 = re.search(r"m.*a", "o3rjomjadas")
+print(m1)  # <re.Match object; span=(5, 10), match='mjada'>
+
+m2 = re.search(r"m.*?a", "o3rjomjadas")
+print(m2) # <re.Match object; span=(5, 8), match='mja'>
+```
+
+# 16. 多任务
+
+```python
+import threading, time
+
+
+def dance():
+    for i in range(50):
+        time.sleep(0.2)
+        print("我正在跳舞")
+
+
+def sing():
+    for i in range(50):
+        time.sleep(0.2)
+        print("我正在唱歌")
+
+
+# python里同时执行多个任务有以下几种方式:
+# 1.多线程
+# 2.多进程
+# 3.多进程+多线程
+# dance()
+# sing()
+
+# target需要的是一个函数，用来指定线程需要执行的任务
+t1 = threading.Thread(target=dance)  # 创建了线程1
+t2 = threading.Thread(target=sing)  # 创建了线程2
+
+t1.start()
+t2.start()
+```
+
+## 16.1 多线程安全问题
+
+```python
+import threading
+
+# 多线程安全问题
+import time
+
+ticket = 20
+
+
+def sell_ticket():
+    global ticket
+    while True:
+        if ticket > 0:
+            time.sleep(1)
+            ticket -= 1
+            print("{}卖出一张票，还剩{}张".format(threading.current_thread().name, ticket))
+        else:
+            print("票卖完了")
+            break
+
+
+t1 = threading.Thread(target=sell_ticket, name="线程1")
+t2 = threading.Thread(target=sell_ticket, name="线程2")
+
+t1.start()
+t2.start()
+```
+
+
+
+## 16.2 线程锁
+
+
+
+## 16.3 线程间的通信
+
+
+
+## 16.4 多进程的使用
+
+```python
+# 多进程的使用
+import multiprocessing, time
+
+
+def dance(n):
+    for i in range(n):
+        time.sleep(0.5)
+        print("正在跳舞")
+
+
+def sing(m):
+    for i in range(m):
+        time.sleep(0.5)
+        print("正在唱歌")
+
+
+# 创建了两个进程
+# target 用来表示执行的任务
+# args 用来传参，类型是一个元组
+p1 = multiprocessing.Process(target=dance, args=(20,))
+p2 = multiprocessing.Process(target=sing, args=(50,))
+
+p1.start()
+p2.start()
+```
+
+## 16.5 多进程不能共享全局变量
+
+线程之间可以共享同一进程的全局变量
+
+
+
+## 16.6 进程之间通信
+
+```python
+# 进程之间通信
+import os, multiprocessing
+from queue import Queue
+
+
+def producer(x):
+    for i in range(10):
+        print("生产了++++++++pid{} {}".format(os.getpid(), i))
+        x.put("pid{} {}".format(os.getpid(), i))
+
+
+def consume(x):
+    for i in range(10):
+        print("消费了--------{}".format(x.get()))
+
+
+if __name__ == "__main__":
+    q = Queue()
+    p1 = multiprocessing.Process(target=producer, args=(q,))
+    p1.start()
+
+    c2 = multiprocessing.Process(target=consume, args=(q,))
+    c2.start()
+```
+
+
+
+## 16.7 队列
+
+```python
+import multiprocessing, queue
+
+q2 = queue.Queue()  # 线程间通信
+# 创建队列时，可以指定最大长度，默认值是0，表示不限长度
+q1 = multiprocessing.Queue(5)  # 进程间通信
+
+q1.put("1")
+q1.put("1")
+q1.put("1")
+q1.put("1")
+q1.put("1")
+# q1.put("2") # 放不进去，可以发现队列里可以放入重复的元素
+# block=True表示是阻塞的，即如果队列已经满了，就等待
+# timeout超时，等待多久以后程序会出错，单位是秒
+# q1.put("2", block=True, timeout=1)
+# q1.put_nowait("3")  # 等价于q1.put("3",block=False)
+
+
+print(q1.get())
+print(q1.get())
+print(q1.get())
+print(q1.get())
+print(q1.get())
+# q1.get(block=True, timeout=1)
+q1.get_nowait()
+```
+
+## 16.8 进程池
+
+
+
+## 16.9 join方法的使用
+
+
+
+
+
+# 17. requests 模块
+
+
 
 
 # 99. Python2和Python3的区别
