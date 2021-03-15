@@ -312,9 +312,259 @@ cv2读取图片路径中不能包含中文，不然数据读取不出来
 
 
 
+# 7.ffmpeg
+
+## 7.1 截取有声视频命令
+
+```bash
+ffmpeg -ss 00:00:00 -i video1.mp4 -acodec copy -vcodec copy -t 00:04:04 video2.mp4
+```
+
+## 7.2 从视频中提取无声视频
+
+```bash
+ffmpeg -i video1.mp4 -vcodec copy -an video2.mp4
+```
+
+# 8.pandas
+
+## 8.1 基本概念介绍
+
+pandas:Python Data Analysis Library
+
+pandas是基于numpy的一种工具，该工具是为了解决数据分析任务而创建的
+
+pandas纳入了大量库和一些标准的数据模型，提供了高效的操作大型数据集所需要的工具
+
+pandas提供了大量能使我们快速便捷地处理数据的函数和方法
+
+pandas是使python称为数据分析强大语言的原因，最重要的就是DataFrame(数据表格，相当于excel,二维:行和列)，Series(一维)
+
+## 8.2 Series
+
+Series是一种类似于一维数组的对象，由以下两个部分组成：
+
++ values:一组数据(ndarray类型)
++ index:相关的数据索引标签
+
+### 8.2.1 Series的创建
+
+有两种方式
+
+1. 由列表或numpy数组创建
+
+   默认索引为0到N-1的整数型索引
+
+   ![image-20210312171549331](./images/41.png)
+
+   
+
+2. 由字典创建
+
+![image-20210312171759556](./images/42.png)
+
+### 8.2.2 Series的索引和切片
+
+可以使用中括号取单个索引(此时返回的是元素类型)或者中括号里一个列表取多个索引(此时返回的仍然是一个Series类型)。
+
+索引分为显式索引和隐式索引
+
+1. 显式索引
+
+   + 使用index中的元素作为索引值
+   + 使用`.loc[]`(推荐)
+
+   注意此时是闭区间
+
+2. 隐式索引
+
+   + 使用整数作为索引值
+   + 使用`.iloc[]`(推荐)
+
+   注意此时是半开区间
+
+### 8.2.3 Series的基本概念
+
++ 可以把Series看成一个定长的有序字典
+
++ 可以通过shape,size,index,values等得到series的属性
+
+![image-20210312181245580](./images/46.png)
+
++ 可以通过head(),tail()快速查看Series对象的样式
+
+![image-20210312181215243](./images/45.png)
+
++ 当索引没有对应的值时，可能出现缺失数据显示NaN(Not a Number)的情况
+
+![image-20210312181149736](/Users/cuiguangsong/go/src/docs/AI/images/44.png)
+
++ 可以使用pd.isnull(),pd.notnull()或自带isnull(),notnull()函数检测缺失数据
+
+![image-20210312181122216](./images/43.png)
+
++ Series对象本身及其实例都有一个name属性
+
+  ![image-20210312181456962](./images/47.png)
+
++ Series是对Numpy的升级，numpy中有的，Series都有
+
+### 8.2.4 Series的运算
+
+1. 适用于numpy的数组运算也适用于Series
+
+   ![image-20210312182033583](./images/48.png)
+
+   ![image-20210312182358702](./images/49.png)
+
+   ![image-20210312182725303](./images/50.png)
+
+   
+
+2. Series之间的运算
+
+   + 在运算中自动对齐不同索引的数据
+   + 如果索引不对应，则补NaN
+   + 注意：要想保留所有的index,则需要使用`.add()`函数
+
+   Series对象之间的运算，索引要对应
+
+   
+   
+
+
+## 8.3 DataFrame(非常重要)
+
+### 8.3.1 创建
+
+最常用的方法是传递一个字典来创建。DataFrame以字典的键作为每一【列】 的名称，以字典的值(一个数组)作为每一列，此外，DataFrame会自动加上每一行的索引(和Series一样)
+
+同Series一样，若传入的列与字典的键不匹配，则相应的值为NaN
 
 
 
+
+
+DataFrame属性：values、columns、index、shape
+
+
+
+### 8.3.2 索引
+
+1. 对列进行索引
+
+   + 通过类似字典的方式
+   + 通过属性的方式
+
+   可以将DataFrame的列获取为一个Series。返回的Series拥有原DataFrame相同的索引，且name属性也已经设置好了，就是相应的列名
+
+2. 对行进行索引
+
+   + 使用.ix[]来进行行索引
+   + 使用.loc[]加index来进行行索引
+   + 使用.iloc[]加整数来进行行索引
+
+   注意：直接使用中括号时：
+
+   + 索引表示的是列索引
+   + 切片表示的是行切片
+
+   直接使用[]不能对列进行切片，可以对行进行切片
+
+### 8.3.3 DataFrame的运算
+
+1. DataFrame之间的运算
+
+   同Series一样：
+
+   + 在运算中自动对齐不同索引的数据
+   + 如果索引不对应，则补NaN
+
+
+### 8.3.4 常用方法
+
++ min
++ max
++ std
++ corr
++ var
++ cov
+
+
+
+## 8.4 处理缺失数据
+
+有两种缺失数据：
+
++ None
+
++ np.nan(NaN)
+
+  np.nan是浮点类型，能参与到计算中，但计算的结果总是NaN,但可以使用np.nan*()函数来计算nan,此时视nan为0
+
+处理空数据的方法：
+
++ 如果空数据不多，可以直接删除
+
++ 填充
+
+  无论什么样的填充方式，"假数据"应该尽量让数据合理，可以采用的填充如下：
+
+  中位数、平均值、众数、前置填充、后置填充、局部平均值、算法填充、拉格朗日中值
+
+
+
+## 8.5 多层索引
+
+DataFrame和Series创建多层索引的方式一样
+
+多层所以可以是行，也可以是列
+
+## 8.6 stack和unstack
+
+stack:列变成行
+
+unstack:行变列
+
+多层Series通过unstack转变成DataFrame
+
+## 8.7 数据分组聚合操作
+
+pandas数据集成：
+
+​	数据可能分散在不同文件中，合并都一起
+
+​	numpy级联操作，axis注意
+
+​	pandas级联操作和numpy类似
+
+​	一般级联：行方向进行级联，不同表，可以级联必然是属性相同，大部分情况都是使用的这种级联方式
+
+
+
+
+
+# 9.关于axis的总结
+
+Numpy中只要掌握axis计算方向
+
+Pandas计算时，也需要注意axis概念
+
+Pandas只有两个轴:index,columns
+
+axis=0 --> index
+
+axis=1 --> columns
+
+
+
+# 10. scipy
+
+Sience python:高端科学计算库
+
+该看 P50 26:29
+
+   
 
 
 
