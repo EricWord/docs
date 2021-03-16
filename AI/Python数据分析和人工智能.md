@@ -562,7 +562,23 @@ axis=1 --> columns
 
 Sience python:高端科学计算库
 
-该看 P50 26:29
+
+
+# 11. KNN
+
+K近邻算法
+
+K:k个数
+
+N:Nearest
+
+N:neighbor
+
+数学根据远近进行分类
+
+距离：欧几里得距离
+
+Python 大数据与人工智能该看P71
 
    
 
