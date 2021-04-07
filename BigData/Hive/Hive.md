@@ -65,8 +65,6 @@
    + 优化器（Query Optimizer）：对逻辑执行计划进行优化。
    + 执行器（Execution）：把逻辑执行计划转换成可以运行的物理计划。对于 Hive 来说，就是 MR/Spark。
 
-![image-20210102193144618](E:\Projects\docs\BigData\Hive\images\3.png)
-
 Hive 通过给用户提供的一系列交互接口，接收到用户的指令(SQL)，使用自己的 Driver，结合元数据(MetaStore)，将这些指令翻译成 MapReduce，提交到 Hadoop 中执行，最后，将执行返回的结果输出到用户交互接口。
 
 ## 1.4 **Hive** **和数据库比较**
@@ -975,7 +973,7 @@ atguigu USER {createtime=20170830}
      Table Type: MANAGED_TABLE
      ```
 
-### 4.5.2 
+### 4.5.2 外部表
 
 1. **理论**
 
@@ -2786,11 +2784,9 @@ than denominator in sample clause for table stu_buck
    select name,orderdate,cost,
    sum(cost) over() as sample1,--所有行相加
    sum(cost) over(partition by name) as sample2,--按 name 分组，组内数据相加
-   sum(cost) over(partition by name order by orderdate) as sample3,--按 name
-   分组，组内数据累加
+   sum(cost) over(partition by name order by orderdate) as sample3,--按 name分组，组内数据累加
    sum(cost) over(partition by name order by orderdate rows between 
-   UNBOUNDED PRECEDING and current row ) as sample4 ,--和 sample3 一样,由起点到
-   当前行的聚合
+   UNBOUNDED PRECEDING and current row ) as sample4 ,--和 sample3 一样,由起点到当前行的聚合
    sum(cost) over(partition by name order by orderdate rows between 1 
    PRECEDING and current row) as sample5, --当前行和前面一行做聚合
    sum(cost) over(partition by name order by orderdate rows between 1 
@@ -2799,22 +2795,22 @@ than denominator in sample clause for table stu_buck
    row and UNBOUNDED FOLLOWING ) as sample7 --当前行及后面所有行
    from business;
    ```
-
+   
    rows 必须跟在 order by 子句之后，对排序的结果进行限制，使用固定的行数来限制分区中的数据行数量
 
    （4） 查看顾客上次的购买时间
 
    ```sql
-   select name,orderdate,cost,
+select name,orderdate,cost,
    lag(orderdate,1,'1900-01-01') over(partition by name order by orderdate ) 
    as time1, lag(orderdate,2) over (partition by name order by orderdate) as 
    time2 from business;
    ```
-
+   
    （5） 查询前 20%时间的订单信息
 
    ```sql
-   select * from (
+select * from (
    select name,orderdate,cost, ntile(5) over(order by orderdate) sorted
    from business
    ) t
@@ -4649,43 +4645,43 @@ t6.video_sum,
 rank() over(ORDER BY t6.video_sum DESC ) rk
 FROM
 (
-SELECT
-t5.category_name,
-COUNT(t5.relatedid_id) video_sum
-FROM
-(
-SELECT
-t4.relatedid_id,
-category_name
-FROM
-(
-SELECT 
-t2.relatedid_id ,
-t3.category 
-FROM 
-(
-SELECT 
-relatedid_id
-FROM 
-(
-SELECT 
-videoId, 
-views,
-relatedid 
-FROM 
-gulivideo_orc
-  ORDER BY
-views 
-DESC 
-LIMIT 50
-)t1
-lateral VIEW explode(t1.relatedid) t1_tmp AS relatedid_id
-)t2 
-JOIN 
-gulivideo_orc t3 
-ON 
-t2.relatedid_id = t3.videoId 
-) t4 
+  SELECT
+  t5.category_name,
+  COUNT(t5.relatedid_id) video_sum
+  FROM
+  (
+      SELECT
+      t4.relatedid_id,
+      category_name
+      FROM
+      (
+            SELECT 
+            t2.relatedid_id ,
+            t3.category 
+            FROM 
+            (
+                    SELECT 
+                    relatedid_id
+                    FROM 
+                    (
+                        SELECT 
+                        videoId, 
+                        views,
+                        relatedid 
+                        FROM 
+                        gulivideo_orc
+                          ORDER BY
+                        views 
+                        DESC 
+                        LIMIT 50
+            )t1
+      lateral VIEW explode(t1.relatedid) t1_tmp AS relatedid_id
+      )t2 
+  JOIN 
+  gulivideo_orc t3 
+  ON 
+  t2.relatedid_id = t3.videoId 
+  ) t4 
 lateral VIEW explode(t4.category) t4_tmp AS category_name
 ) t5
 GROUP BY
@@ -4741,22 +4737,22 @@ t2.views,
 t2.category_name,
 t2.rk
 FROM 
-(
-SELECT 
-t1.videoId,
-t1.views,
-t1.category_name,
-rank() over(PARTITION BY t1.category_name ORDER BY t1.views DESC ) rk
-FROM 
-(
-SELECT
-videoId,
-views,
-category_name
-FROM gulivideo_orc
-lateral VIEW explode(category) gulivideo_orc_tmp AS category_name
-)t1
-)t2
+	(
+    SELECT 
+    t1.videoId,
+    t1.views,
+    t1.category_name,
+    rank() over(PARTITION BY t1.category_name ORDER BY t1.views DESC ) rk
+        FROM 
+        (
+                  SELECT
+                  videoId,
+                  views,
+                  category_name
+                  FROM gulivideo_orc
+                  lateral VIEW explode(category) gulivideo_orc_tmp AS category_name
+        )t1
+    )t2
 WHERE t2.rk <=10
 ```
 
@@ -4775,17 +4771,17 @@ SELECT
 t2.videoId,
 t2.views,
 t2.uploader
-FROM
-(
-SELECT 
-uploader,
-videos
-FROM gulivideo_user_orc 
-ORDER BY 
-videos
-DESC
-LIMIT 10 
-) t1
+      FROM
+      (
+              SELECT 
+              uploader,
+              videos
+              FROM gulivideo_user_orc 
+              ORDER BY 
+              videos
+              DESC
+              LIMIT 10 
+      ) t1
 JOIN gulivideo_orc t2 
 ON t1.uploader = t2.uploader
 ORDER BY 
