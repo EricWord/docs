@@ -15,7 +15,7 @@
 9. 对溢写出的文件进行归并排序
 10. 合并
 11. --------上面是Map阶段，下面是Reduce阶段------
-12. 所有的MapTask完成后，启动相应数量的ReduceTask，并告知ReduceTask处理数据范围(数据分区)
+12. 所有的MapTask完成后，启动相应数量的ReduceTask，MRAPPMaster告知ReduceTask处理数据范围(数据分区)
 13. 将对应分区内的数据下载到ReduceTask本地磁盘
 14. 合并文件，归并排序
 15. 分组

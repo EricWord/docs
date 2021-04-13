@@ -332,6 +332,7 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
      #忽略所有以.tmp 结尾的文件，不上传
 
      a3.sources.r3.ignorePattern = ([^ ]*/.tmp)
+     ```
 ```
      a3.sinks.k3.type = hdfs
      a3.sinks.k3.hdfs.path = 
@@ -363,8 +364,8 @@ export JAVA_HOME=/opt/module/jdk1.8.0_144
      a3.sources.r3.channels = c3
      a3.sinks.k3.channel = c3
      
-     ```
-     
+```
+
      ```
 
 
@@ -1082,11 +1083,11 @@ Flume支持使用将多个sink逻辑上分到一个sink组，sink组配合不同
      ![image-20210117215213225](./images/27.png)
 
 
-## 3.5 **自定义** **Interceptor**
+## 3.5 **自定义** Interceptor
 
 1. **案例需求**
 
-   使用 Flume 采集服务器本地日志，需要按照日志类型的不同，将不同种类的日志发往不/同的分析系统。
+   使用 Flume 采集服务器本地日志，需要按照日志类型的不同，将不同种类的日志发往不同的分析系统。
 
 2. **需求分析**
 
@@ -1676,17 +1677,18 @@ Flume支持使用将多个sink逻辑上分到一个sink组，sink组配合不同
 2. **启动 Flume 任务**
 
    ```bash
-
+   
    [atguigu@hadoop102 flume]$ bin/flume-ng agent \
    --conf conf/ \
    --name a1 \
    --conf-file job/flume-netcat-logger.conf \ -Dflume.root.logger==INFO,console \ -Dflume.monitoring.type=ganglia \ -Dflume.monitoring.hosts=192.168.9.102:8649
    
    ```
+
+   ```
+   
    
    ```
-
-   
 
 3. **发送数据观察 ganglia 监测图**
 
