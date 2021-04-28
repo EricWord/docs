@@ -12,7 +12,7 @@ Apache Flink 是一个框架和分布式处理引擎，用于对无界和有界�
 
    在 Flink 的世界观中，一切都是由流组成的，离线数据是有界的流；实时数据是一个没有界限的流：这就是所谓的有界流和无界流
 
-3. 分成API
+3. 分层API
 
    +  越顶层越抽象，表达含义越简明，使用越方便
    + 越底层越具体，表达能力越丰富，使用越灵活
@@ -662,9 +662,7 @@ spark streaming 的 checkpoint 仅仅是针对 driver 的故障恢复做了数�
 
 # 65. Flink CEP 编程中当状态没有到达的时候会将数据保存在哪里？
 
-在流式处理中，CEP 当然是要支持 EventTime 的，那么相对应的也要支持数据的迟到现象，也就是 watermark 的处理逻辑。CEP 对未匹配成功的事件序列的处理，和迟到数据是类似的。在 Flink CEP 的处理逻辑中，状态没有满足的和
-
-迟到的数据，都会存储在一个 Map 数据结构中，也就是说，如果我们限定判断事件序列的时长为 5 分钟，那么内存中就会存储 5 分钟的数据，这在我看来，也是对内存的极大损伤之一
+在流式处理中，CEP 当然是要支持 EventTime 的，那么相对应的也要支持数据的迟到现象，也就是 watermark 的处理逻辑。CEP 对未匹配成功的事件序列的处理，和迟到数据是类似的。在 Flink CEP 的处理逻辑中，状态没有满足的和迟到的数据，都会存储在一个 Map 数据结构中，也就是说，如果我们限定判断事件序列的时长为 5 分钟，那么内存中就会存储 5 分钟的数据，这在我看来，也是对内存的极大损伤之一
 
 
 
@@ -823,7 +821,7 @@ Flink可以完全独立于Hadoop，在不依赖Hadoop组件下运行。但是做
 
 # 84. **说说你知道的Flink分区策略？**
 
-目前 Flink 支持了8中分区策略的实现。
+目前 Flink 支持了8种分区策略的实现。
 
 1. **GlobalPartitioner**
 
@@ -843,7 +841,7 @@ Flink可以完全独立于Hadoop，在不依赖Hadoop组件下运行。但是做
 
 5. **BroadcastPartitioner**
 
-   广播分区会将上游数据输出到下游算子的每个实例中。适合于大数据集和小数据集做Jion的场景。
+   广播分区会将上游数据输出到下游算子的每个实例中。适合于大数据集和小数据集做join的场景。
 
 6. **ForwardPartitioner**
 
@@ -907,7 +905,7 @@ env.execute()
 
 # 89. **Flink Table & SQL 熟悉吗？TableEnvironment这个类有什么作用**
 
-ableEnvironment是Table API和SQL集成的核心概念。
+TableEnvironment是Table API和SQL集成的核心概念。
  这个类主要用来：
 
 - 在内部catalog中注册表
@@ -936,7 +934,7 @@ Flink的开发者认为批处理是流处理的一种特殊情况。批处理是
 
 # 92. **Flink是如何做到高效的数据交换的？**
 
-在一个Flink Job中，数据需要在不同的task中进行交换，整个数据交换是有 TaskManager 负责的，TaskManager  的网络组件首先从缓冲buffer中收集records，然后再发送。Records 并不是一个一个被发送的，而是积累一个批次再发送，batch  技术可以更加高效的利用网络资源
+在一个Flink Job中，数据需要在不同的task中进行交换，整个数据交换是由 TaskManager 负责的，TaskManager  的网络组件首先从缓冲buffer中收集records，然后再发送。Records 并不是一个一个被发送的，而是积累一个批次再发送，batch  技术可以更加高效的利用网络资源
 
 # 93. **Flink 分布式快照的原理是什么？**
 
@@ -964,7 +962,7 @@ Flink  为了避免JVM的固有缺陷例如java对象存储密度低，FGC影响
 
 # 96. Flink编程模型是什么？
 
-其实就一句话，就是 **Source->Transformation\*->Sink**
+其实就一句话，就是 Source->Transformation->Sink
 
 # 97. Flink假如遇到程序异常重启怎么办？
 

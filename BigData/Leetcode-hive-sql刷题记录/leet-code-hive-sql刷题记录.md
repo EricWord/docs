@@ -61,18 +61,29 @@ https://leetcode-cn.com/problems/trips-and-users/
 ## 2.2 解答
 
 ```sql
-select t.Request_at as Day,
-       round(
-               sum(if(t.Status = 'completed', 0, 1)) / count(t.Status)
-           , 2
-           )        as `Cancellation Rate`
 
-
-from lc_262_tripes t
-         join lc_262_users t1 on (t.Client_Id = t1.users_id)
-         join lc_262_users t2 on (t.Client_Id = t2.users_id)
-where to_date(t.request_at) between '2013-10-01' and '2013-10-03'
-group by Request_at;
+SELECT T.request_at AS `Day`,
+       ROUND(
+                   SUM(
+                           IF(T.STATUS = 'completed', 0, 1)
+                       )
+                   /
+                   COUNT(T.STATUS),
+                   2
+           )        AS `Cancellation Rate`
+FROM lc_262_tripes AS T
+WHERE T.Client_Id NOT IN (
+    SELECT users_id
+    FROM lc_262_users
+    WHERE banned = 'Yes'
+)
+  AND T.Driver_Id NOT IN (
+    SELECT users_id
+    FROM lc_262_users
+    WHERE banned = 'Yes'
+)
+  AND T.request_at BETWEEN '2013-10-01' AND '2013-10-03'
+GROUP BY T.request_at;
 ```
 
 
@@ -249,13 +260,12 @@ order by pay_month desc
 ## 8.2 解答
 
 ```sql
-select 
-max(case when continent='America' then name end )as America,
-max(case when continent='Asia' then name end )as Asia,
-max(case when continent='Europe' then name end) as Europe
-from (select  name,continent,row_number() over(partition by continent order by name) rk
-from student)t
-group by rk
+select max(if(continent = 'America', name, null)) as America,
+       max(if(continent = 'Asia', name, null))    as Asia,
+       max(if(continent = 'Europe', name, null))  as Europe
+from (select name, continent, row_number() over (partition by continent order by name) rk
+      from lc_618_student) t
+group by rk;
 ```
 
 
@@ -621,7 +631,239 @@ where rn <= (select max(transactions_count) from t2);
 
 https://leetcode-cn.com/problems/get-the-second-most-recent-activity/
 
+![image-20210426124359803](images/image-20210426124359803.png)
+
+![image-20210426124412043](images/image-20210426124412043.png)
+
 
 
 ## 15.2 解答
+
+```sql
+with t1369201 as (
+    select *,
+           rank() over (partition by username order by startDate desc) as rn,
+           count(*) over (partition by username)                       as cnt
+    from lc_1369_user_activity
+)
+
+select username,
+       activity,
+       startDate,
+       endDate
+from t1369201
+where rn = 2
+   or cnt = 1
+order by username;
+```
+
+
+
+
+
+# 16. 题目1384 按年度列出销售总额
+
+## 16.1 题目描述
+
+![image-20210426144507063](images/image-20210426144507063.png)
+
+![image-20210426144532622](images/image-20210426144532622.png)
+
+
+
+## 16.2 解答
+
+```sql
+with t1384201 as (
+    select s.product_id,
+           product_name,
+           '2018'                       as report_year,
+           if(period_start < '2019-01-01',
+              (datediff(if(period_end < '2019-01-01', period_end, date('2018-12-31')),
+                        if(period_start < '2018-01-01', '2018-01-01', period_start)) + 1) *
+              s.average_daily_sales, 0) as total_amount
+    from lc_1384_sales s
+             left join lc_1384_product p on s.product_id = p.product_id
+),
+
+     t1384202 as (
+         select s.product_id,
+                product_name,
+                '2019'                       as report_year,
+                if(period_start < '2020-01-01',
+                   (datediff(if(period_end < '2020-01-01', period_end, date('2019-12-31')),
+                             if(period_start < '2019-01-01', '2019-01-01', period_start)) + 1) *
+                   s.average_daily_sales, 0) as total_amount
+         from lc_1384_sales s
+                  left join lc_1384_product p on s.product_id = p.product_id
+     ),
+     t1384203 as (
+         select s.product_id,
+                product_name,
+                '2020'                as report_year,
+                (datediff(if(period_end < '2021-01-01', period_end, date('2020-12-31')),
+                          if(period_start < '2020-01-01', '2020-01-01', period_start)) + 1) *
+                s.average_daily_sales as total_amount
+         from lc_1384_sales s
+                  left join lc_1384_product p on s.product_id = p.product_id
+     )
+
+    (select *
+     from t1384201
+     where total_amount > 0)
+union
+(select *
+ from t1384202
+ where total_amount > 0)
+union
+(select *
+ from t1384203
+ where total_amount > 0)
+order by product_id, report_year;
+```
+
+
+
+# 17. 题目1412 查找成绩处于中游的学生
+
+## 17.1 题目描述
+
+![image-20210426162247362](images/image-20210426162247362.png)
+
+![image-20210426162258990](images/image-20210426162258990.png)
+
+![image-20210426162311379](images/image-20210426162311379.png)
+
+
+
+## 17.2 解答
+
+```sql
+with t141201 as (
+    select e.student_id,
+           s.student_name,
+           exam_id,
+           score
+
+    from lc_1412_exam e
+             left join lc_1412_student s
+                       on e.student_id = s.student_id
+),
+     t141202 as (
+         select *,
+                row_number() over (partition by exam_id order by score) as rn
+         from t141201
+     ),
+
+-- select *
+-- from t141202;
+     t141203 as (
+         select *, max(rn) over (partition by exam_id) as max_rn, min(rn) over (partition by exam_id) as min_rn
+         from t141202
+     ),
+
+-- select * from t141203;
+     t141204 as (
+         select distinct student_id
+
+         from t141203
+         where rn = max_rn
+            or rn = min_rn
+     )
+select distinct student_id,
+       student_name
+from t141203
+where student_id not in (select student_id from t141204)
+;
+```
+
+# 18. 题目1479 周内每天的销售情况
+
+## 18.1 题目描述
+
+![image-20210426173315691](images/image-20210426173315691.png)
+
+![image-20210426173329975](images/image-20210426173329975.png)
+
+![image-20210426173341113](images/image-20210426173341113.png)
+
+![image-20210426173411542](images/image-20210426173411542.png)
+
+## 18.2 解答
+
+```sql
+with t147901 as (
+    select order_id,
+           customer_id,
+           order_date,
+           o.item_id,
+           item_name,
+           item_category,
+           nvl(quantity, 0) as quantity
+    from lc_1479_orders o
+             full join lc_1479_items i on o.item_id = i.item_id
+)
+select item_category                                   as Category,
+       sum(if(dayofweek(order_date) = 2, quantity, 0)) as Monday,
+       sum(if(dayofweek(order_date) = 3, quantity, 0)) as Tuesday,
+       sum(if(dayofweek(order_date) = 4, quantity, 0)) as Wednesday,
+       sum(if(dayofweek(order_date) = 5, quantity, 0)) as Thursday,
+       sum(if(dayofweek(order_date) = 6, quantity, 0)) as Friday,
+       sum(if(dayofweek(order_date) = 7, quantity, 0)) as Saturday,
+       sum(if(dayofweek(order_date) = 1, quantity, 0)) as Sunday
+from t147901
+group by item_category
+order by item_category;
+```
+
+
+
+# 19. (快手)统计各科成绩均高于每科平均成绩的学生信息
+
+## 19.1 题目描述
+
+```sql
+create table tsc
+(
+    student_id int,
+    course_id  int,
+    score      int
+)
+    row format delimited fields terminated by ',';
+
+insert overwrite table tsc
+values (1, 1, 90),
+       (1, 2, 60),
+       (2, 1, 90),
+       (2, 2, 30),
+       (3, 1, 60);
+```
+
+![image-20210427104404033](images/image-20210427104404033.png)
+
+## 19.2 解答
+
+```sql
+with tt1 as (
+    select course_id,
+           avg(score) as avg_score
+    from tsc
+    group by course_id
+),
+     tt2 as (
+         select *
+         from (select * from tsc) t1
+                  join
+                  (select * from tt1) t2
+                  on t1.course_id = t2.course_id
+     ),
+     tt3 as (
+         select *, if(score > avg_score, 1, 0) as flag
+
+         from tt2
+     )
+select distinct student_id
+from tt3
+where student_id not in (select distinct student_id from tt3 where flag = 0);
+```
 

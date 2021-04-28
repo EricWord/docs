@@ -1844,6 +1844,96 @@ Step3：把这5000个文件进行归并(类似与归并排序);
 
 
 
+# 110. 如何避免shuffle
+
+## 110.1 DataFrame/DataSet的join避免shuffle
+
+针对Spark DataFrame/DataSet的join，可以通过broadcast join和bucket join来避免shuffle操作
+
+1. Broadcast Join
+
+   Broadcast join很好理解，小表被分发到所有executors，所以不需要做shuffle就可以完成join. Spark SQL控制自动broadcast join的参数是：spark.sql.autoBroadcastJoinThreshold ， 默认为10MB. 就是说当join中的一张表的size小于10MB时，spark会自动将其封装为broadcast发送到所有结点，然后进行broadcast join. 当然也可以手动将join中的某张表转化成broadcast : 
+
+       sparkSession.sparkContext.broadcast(df)
+
+2. Bucket Join
+
+   Bucket join其实就是将要join的两张表按照join columns（或join columns的子集）根据相同的partitioner预先做好分区，并将这些分区信息存储到catalog中（比如HiveExternalCatalog）；然后在读取这两张表并做join时，spark根据bucket信息将两张表的相同partition进行join即可，从而避免了shuffle的过程。注意，这里是避免了shuffle过程，并没有完全避免网络传输，由于两张表的相同partition不一定在同一台机器上，所以这里仍需要对其中一张表的partition进行网络传输
+
+## 110.2 RDD的join避免shuffle
+
+RDD的join可以避免shuffle的条件是：参与join的所有RDD的partitioner都和结果RDD的partitioner相同
+
+在RDD对象中有一个隐式转换可以将RDD转换成PairRDDFunctions对象，这样就可以直接在RDD对象上调用join方法，然后在join方法中指定partitioner
+
+
+
+
+
+
+
+# 111.map和mapPartitions的区别
+
+两者的区别：
+
+- map是对RDD中的每一个元素进行操作
+- mapPartitions则是对RDD中的每个分区的迭代器进行操作
+
+**MapPartitions的优点：**
+
+如果是普通的map，比如一个partition中有1万条数据。ok，那么你的function要执行和计算1万次。
+
+使用MapPartitions操作之后，一个task仅仅会执行一次function，function一次接收所有
+的partition数据。只要执行一次就可以了，性能比较高。如果在map过程中需要频繁创建额外的对象(例如将rdd中的数据通过jdbc写入数据库,map需要为每个元素创建一个链接而mapPartition为每个partition创建一个链接),则mapPartitions效率比map高的多。
+
+SparkSql或DataFrame默认会对程序进行mapPartition的优化。
+
+**MapPartitions的缺点：**
+
+如果是普通的map操作，一次function的执行就处理一条数据；那么如果内存不够用的情况下， 比如处理了1千条数据了，那么这个时候内存不够了，那么就可以将已经处理完的1千条数据从内存里面垃圾回收掉，或者用其他方法，腾出空间来吧。
+所以说普通的map操作通常不会导致内存的OOM异常。 
+
+但是MapPartitions操作，对于大量数据来说，比如甚至一个partition，100万数据，
+一次传入一个function以后，那么可能一下子内存不够，但是又没有办法去腾出内存空间来，可能就OOM，内存溢出。
+
+
+
+# 112.内存划分
+
+Spark 1.6之前采用的是静态内存管理，之后采用的是统一内存管理，统一内存管理和静态内存管理的区别在于统一内存管理的存储内存和执行内存共享同一块空间，可以动态占用对方的空闲区域。
+
+spark的内存整体上可以划分为堆内内存和堆外内存两部分
+
+**堆内内存：(3部分)**
+
+堆内内存的大小，由spark应用程序启动时的-executor-memory或者spark.executor.memory参数配置，Executor内运行的并发任务共享JVM堆内内存。
+
+1. 缓存RDD数据和广播(Broadcast)数据时占用的内存被规划为**存储(Storage)内存**
+2. 执行Shuffle时占用的内存被规划为**执行(Executioni)内存**
+3. 剩余的部分不做特殊规划，叫做other空间，Spark内部的对象实例、用户定义的Spark应用程序中的对象实例，均占用该部分空间
+
+**堆外内存**
+
+除了没有other空间，堆外内存与堆内内存的划分方式相同。
+
+默认情况下，堆外内存并不启用，可通过配置spark.memory.offHeap.enabled参数启用，并由spark.memory.offHeap.size参数设定堆外空间的大小。
+
+![image-20210418142236238](images/image-20210418142236238-9601905.png)
+
+![image-20210418142737782](images/image-20210418142737782-9601905.png)
+
+
+
+
+
+![image-20210418144923625](images/image-20210418144923625-9601905.png)
+
+![image-20210418144934325](images/image-20210418144934325-9601905.png)
+
+执行内存的空间被对方占用后，可让对方将占用的部分转存到硬盘，然后"归还"借用的空间
+
+存储内存的空间被对方占用后，无法让对方"归还"，因为需要考虑 Shuffle 过程中的很多因素，实现起来较为复杂
+
 
 
 
