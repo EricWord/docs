@@ -68,5 +68,12 @@ The Cluster ID K-F-q1wUTAC3Ieop2neoaw doesn't match stored clusterId Some(R9ik1P
 The Cluster ID K-F-q1wUTAC3Ieop2neoaw doesn't match stored clusterId Some(R9ik1PHrSzyrOUHcSFNnXA) in meta.properties. The broker is trying to join the wrong cluster. Configured zookeeper.connect may be wrong.
 ```
 
-该看P30
 
+
+```sql
+select count(*) as num ,substr(created_at,1,10) as time from sex_check_histories  where created_at >= '2021-04-26 00:00:00' and  created_at <= '2021-05-06 12:00:00' and category = 'Terror' group by substr(created_at,1,10);
+```
+
+
+
+核心概念部分又看完了一遍(2021-05-06)
