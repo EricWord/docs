@@ -22,7 +22,7 @@
 
 ![image-20210503092258595](file:///Users/cuiguangsong/go/src/docs/Algorithm/images/image-20210503092258595.png?lastModify=1622442044)
 
-```
+```java
 class Solution {
     public boolean isMatch(String s, String p) {
         if (s == null || p == null) {
@@ -78,7 +78,7 @@ class Solution {
 
 使用go解法
 
-```
+```go
 func isMatch(s string, p string) bool {
   sLen, pLen := len(s), len(p)
   dp := make([][]bool, sLen+1)
