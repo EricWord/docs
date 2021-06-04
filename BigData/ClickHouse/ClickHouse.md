@@ -226,6 +226,12 @@ Float32-float
 
 ![image-20210502194220940](images/image-20210502194220940.png)
 
+```sql
+create table aliyun_app_info(package_name String,app_name String,code_tag String,create_time Date,status UInt8,other_info String,md5_value String)ENGINE=ReplacingMregeTree() ;
+```
+
+
+
 ## 4.6 SummingMergeTree
 
 ![image-20210502200705301](images/image-20210502200705301.png)
