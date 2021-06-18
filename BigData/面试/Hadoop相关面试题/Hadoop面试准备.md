@@ -138,7 +138,7 @@
 
 　　3）客户端收到元信息后选取一个网络距离最近的datanode，依次请求读取每个数据块。客户端首先要校检文件是否损坏，如果损坏，客户端会选取另外的datanode请求。
 
-　　4）datanode与客户端简历socket连接，传输对应的数据块，客户端收到数据缓存到本地，之后写入文件。
+　　4）datanode与客户端建立socket连接，传输对应的数据块，客户端收到数据缓存到本地，之后写入文件。
 
 　　5）依次传输剩下的数据块，直到整个文件合并完成。
 
@@ -308,7 +308,7 @@ QJM全称是Quorum Journal Manager,  由JournalNode（JN）组成，一般是奇
 
 #### 3.2.2.2 **QJM 写过程分析**
 
-上面提到EditLog，NameNode会把EditLog同时写到本地和JournalNode。写本地由配置中参数dfs.namenode.name.dir控制，写JN由参数dfs.namenode.shared.edits.dir控制，在写EditLog时会由两个不同的输出流来控制日志的写过程，分别为：EditLogFileOutputStream(本地输出流)和QuorumOutputStream(JN输出流)。写EditLog也不是直接写到磁盘中，为保证高吞吐，NameNode会分别为EditLogFileOutputStream和QuorumOutputStream定义两个同等大小的Buffer，大小大概是512KB，一个写Buffer(buffCurrent)，一个同步Buffer(buffReady)，这样可以一边写一边同步，所以EditLog是一个异步写过程，同时也是一个批量同步的过程，避免每写一笔就同步一次日志。
+上面提到EditLog，NameNode会把EditLog同时写到本地和JournalNode。写本地由配置中参数dfs.namenode.name.dir控制，写JN由参数dfs.namenode.shared.edits.dir控制，在写EditLog时会由两个不同的输出流来控制日志的写过程，分别为：EditLogFileOutputStream(本地输出流)和QuorumOutputStream(JN输出流)。写EditLog也不是直接写到磁盘中，为保证高吞吐，NameNode会分别为EditLogFileOutputStream和QuorumOutputStream定义两个同等大小的Buffer，大小大概是512KB，一个写Buffer(buffCurrent)，一个同步Buffer(buffReady)，这样可以一边写一边同步，所以EditLog是一个异步写过程，同时也是一个批量同步的过程，避免每写一步就同步一次日志。
 
 这个是怎么实现边写边同步的呢，这中间其实是有一个缓冲区交换的过程，即bufferCurrent和buffReady在达到条件时会触发交换，如bufferCurrent在达到阈值同时bufferReady的数据又同步完时，bufferReady数据会清空，同时会将bufferCurrent指针指向bufferReady以满足继续写，另外会将bufferReady指针指向bufferCurrent以提供继续同步EditLog。上面过程用流程图就是表示如下：
 
@@ -412,7 +412,7 @@ QJM是怎么保证上面特性的呢，主要有以下几点：
 
 YARN 是一个资源调度平台，负责为运算程序提供服务器运算资源，相当于一个分布式的操 作系统平台，而 MapReduce 等运算程序则相当于运行于操作系统之上的应用程序
 
-　　YARN 是 Hadoop2.x 版本中的一个新特性。它的出现其实是为了解决第一代 MapReduce 编程  框架的不足，提高集群环境下的资源利用率，这些资源包括内存，磁盘，网络，IO等。Hadoop2.X 版本中重新设计的这个 YARN  集群，具有更好的扩展性，可用性，可靠性，向后兼容性，以 及能支持除 MapReduce 以外的更多分布式计算程序
+　　YARN 是 Hadoop2.x 版本中的一个新特性。它的出现其实是为了解决第一代 MapReduce 编程  框架的不足，提高集群环境下的资源利用率，这些资源包括内存，磁盘，网络，IO等。Hadoop2.X 版本中重新设计的这个 YARN  集群，具有更好的扩展性，可用性，可靠性，向后兼容性，以及能支持除 MapReduce 以外的更多分布式计算程序
 
 　　1、YARN 并不清楚用户提交的程序的运行机制
 
@@ -422,9 +422,9 @@ YARN 是一个资源调度平台，负责为运算程序提供服务器运算资
 
 　　4、YARN 中具体提供运算资源的角色叫 NodeManager
 
-　　5、这样一来，YARN 其实就与运行的用户程序完全解耦，就意味着 YARN 上可以运行各种类 型的分布式运算程序（MapReduce 只是其中的一种），比如 MapReduce、Storm 程序，Spark 程序，Tez ……
+　　5、这样一来，YARN 其实就与运行的用户程序完全解耦，就意味着 YARN 上可以运行各种类型的分布式运算程序（MapReduce 只是其中的一种），比如 MapReduce、Storm 程序，Spark 程序，Tez ……
 
-　　6、所以，Spark、Storm 等运算框架都可以整合在 YARN 上运行，只要他们各自的框架中有 符合 YARN 规范的资源请求机制即可
+　　6、所以，Spark、Storm 等运算框架都可以整合在 YARN 上运行，只要他们各自的框架中有符合 YARN 规范的资源请求机制即可
 
 　　7、yarn 就成为一个通用的资源调度平台，从此，企业中以前存在的各种运算集群都可以整 合在一个物理集群上，提高资源利用率，方便数据共享
 
@@ -432,9 +432,9 @@ YARN 是一个资源调度平台，负责为运算程序提供服务器运算资
 
 1、JobTracker 是集群事务的集中处理点，存在单点故障
 
-　　2、JobTracker 需要完成的任务太多，既要维护 job 的状态又要维护 job 的 task 的状态，造成 过多的资源消耗
+　　2、JobTracker 需要完成的任务太多，既要维护 job 的状态又要维护 job 的 task 的状态，造成过多的资源消耗
 
-　　3、在 TaskTracker 端，用 Map/Reduce Task 作为资源的表示过于简单，没有考虑到 CPU、内 存等资源情况，当把两个需要消耗大内存的 Task 调度到一起，很容易出现 OOM
+　　3、在 TaskTracker 端，用 Map/Reduce Task 作为资源的表示过于简单，没有考虑到 CPU、内存等资源情况，当把两个需要消耗大内存的 Task 调度到一起，很容易出现 OOM
 
 　　4、把资源强制划分为 Map/Reduce Slot，当只有 MapTask 时，TeduceSlot 不能用；当只有 Reduce Task 时，MapSlot 不能用，容易造成资源利用不足。
 
@@ -839,7 +839,7 @@ NameNode默认线程池线程的数量为10
 
 3. SecondaryNamenode
 
-   1. 专门用于Fsimage和edits的合并，减少namenode的压力，添加效率，并返回给Namenode 节点 fsimage.chkpoint,Namenode更名为fsimage
+   1. 专门用于Fsimage和edits的合并，减少namenode的压力，提升效率，并返回给Namenode 节点 fsimage.chkpoint,Namenode更名为fsimage
    2. 请求和执行checkpoint
    3. 在特殊情况可以进行namenode的恢复（一般不用）
 

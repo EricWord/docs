@@ -16,7 +16,7 @@
 
 ### 1.1.1 集群
 
-集群由唯一的名称标识(elasticserach.yml配置文件中对应参数cluster.name)，集群名称是leasticsearch.yml配置we年中最重要的一个配置参数，默认名称为Elasticsearch，节点只能通过集群名称加入集群。
+集群由唯一的名称标识(elasticserach.yml配置文件中对应参数cluster.name)，集群名称是leasticsearch.yml配置文件中最重要的一个配置参数，默认名称为Elasticsearch，节点只能通过集群名称加入集群。
 
 
 
@@ -45,8 +45,6 @@
 文档(document)是可以被索引的基本信息单元，文档以JSON表示
 
 在单个索引中，理论上可以存储任意多的文档
-
-
 
 ### 1.1.6 分片和副本
 
@@ -1181,7 +1179,7 @@ Elasticsearch中的每个索引都分为多个分片，每个分片可以有多�
 
 Elasticsearch中的每个索引操作首先使用路由(通常基于文档ID),解析到一个复制组。一旦确定了复制组，该操作将在内部转发到该组的当前primary。primary负责验证操作并将其转发到replica。由于replica可以离线，因此不需要primary复制到所有replica。相反，Elasticsearch维护一个应该完成接收操作的replica列表，此列表称为同步副本组。由主节点维护，顾名思义，这些是一组"好"的分片拷贝，保证已经处理了所有的索引和删除操作，这些操作已经被用户确认。primary负责维护这个不变量，因此必须将所有操作复制到这个同步副本组中的每个replica
 
-primary遵循一下基本流程:
+primary遵循以下基本流程:
 
 1. 验证传入操作，如果结构无效则直接拒绝该操作。例如，向一个数字字段传输一个对象类型
 2. 在本地执行操作，即索引或删除相关文档。这还将验证字段的内容，并在需要时拒绝。例如，关键字值对于Lucene中的索引而言太长了
@@ -1194,7 +1192,7 @@ primary遵循一下基本流程:
 
 如果primary本身发生故障，primary所在的节点将向master节点发送相关的消息。索引操作将等待(默认情况下最多1分钟)master将其中一个replica提升为新的primary。然后该操作将被转发到新的primary进行处理。同时master还监视节点的运行状况，并可能决定主动降级primary为replica，当包含primary的节点由于网络问题与集群隔离时，通常会发生这种情况。
 
-一旦在primary上成功执行了操作，primary就必须处理在replica上执行时潜在的故障。这可能是由于replica上的实际故障或网络问题导致操作无法到达replica(或阻止replica响应)。所有这些问题会造成相同的最终结果:作为同步副本组的一部分的replica会错过即将被确认的操作。为了避免违反不变量，primary向master发送一条消息，请求从同步副本组中国删除有问题的replica。只有在master确认清除replica后，primary才会确认该操作。同时master还将只是另一个接地那开始构建新的副本，以便将系统恢复到健康状态。
+一旦在primary上成功执行了操作，primary就必须处理在replica上执行时潜在的故障。这可能是由于replica上的实际故障或网络问题导致操作无法到达replica(或阻止replica响应)。所有这些问题会造成相同的最终结果:作为同步副本组的一部分的replica会错过即将被确认的操作。为了避免违反不变量，primary向master发送一条消息，请求从同步副本组中删除有问题的replica。只有在master确认清除replica后，primary才会确认该操作。同时master还将只是另一个节点那开始构建新的副本，以便将系统恢复到健康状态。
 
 在将操作转发到其他replica时，primary将使用replica来验证它是否仍然是活动的primary。如果由于网络分区(或GC时间过长)而隔离了primary，则在知道到他已降级之前，它可能会继续处理传入的索引操作。来自过时primary的操作将被replica拒绝，当primary接收到来自拒绝其请求的replica的响应时，它将到达master并知道它已经被替换，然后将操作路由到新的primary
 
@@ -1213,7 +1211,7 @@ Elasticsearch中的读取可以是非常轻量的按ID查找，也可以是一�
 
 当一个分片未能响应读取请求时，协调节点将请求发送到同步副本组中的另一个分片。重复失败可能导致没有可用的分片。
 
-为了确保快速响应，如果一个或多个分片失败，一下API将以部分结果响应:
+为了确保快速响应，如果一个或多个分片失败，以下API将以部分结果响应:
 
 - Search API
 - Multi Search
@@ -1484,7 +1482,7 @@ MGet API(`_mget`)基于单个索引、类型(可选)和ID(可能还有路由)返
 - 在包含数据的节点上执行过去的搜索请求所用的时间
 - 包含数据的节点上的搜索线程池的队列大小
 
-可以通过更改动态集群设置`cluster.routing.user_adaptie_replica_selection`为false来关闭这种分片选择机制
+可以通过更改动态集群设置`cluster.routing.user_adaptive_replica_selection`为false来关闭这种分片选择机制
 
 如果关闭“自适应副本选择”机制，则在所有数据副本(主分片和副本)之间以循环方式将搜索发送到相关分片
 
