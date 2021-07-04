@@ -354,7 +354,7 @@ http://hadoop102:16010
 
 ## 3.2 **写流程**
 
-![image-20210118182311522](/Users/cuiguangsong/go/src/docs/BigData/Hbase/images/5.png)
+![image-20210118182311522](images/5.png)
 
 1. Client 先访问 zookeeper，获取 hbase:meta 表位于哪个 Region Server
 2. 访问对应的 Region Server，获取 hbase:meta 表，根据读请求的 namespace:table/rowkey，查询出目标数据位于哪个 Region Server 中的哪个 Region 中。并将该 table 的 region 信息以及 meta 表的位置信息缓存在客户端的 meta cache，方便下次访问
@@ -436,7 +436,7 @@ Region Split 时机：
 
 2. 当 1 个 region 中 的 某 个 Store 下所有 StoreFile 的 总 大 小 超 过 Min(R^2 * "hbase.hregion.memstore.flush.size",hbase.hregion.max.filesize")，该 Region 就会进行拆分，其中 R 为当前 Region Server 中属于该 Table 的个数（0.94 版本之后）。   
 
-![image-20210118213828235](./images/9.png)
+![image-20210118213828235](images/9.png)
 
    
 

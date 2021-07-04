@@ -106,7 +106,7 @@ Hadoop三大发行版本：Apache、Cloudera、Hortonworks。
 
 ## 2.5  Hadoop组成（面试重点）
 
-![image-20210103155934490](.\images\23.png)
+![image-20210103155934490](images\23.png)
 
 ### 2.5.1 HDFS架构概述
 
