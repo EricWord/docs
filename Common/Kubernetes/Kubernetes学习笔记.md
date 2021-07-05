@@ -1251,9 +1251,981 @@ Affinity主要分为三类:
 
 ### 5.4.3 污点和容忍
 
-该看44
+**污点(Taints)**
+
+前面的调度方式都是站在Pod的角度上，通过在Pod上添加属性，来确定Pod是否要调度到指定的Node上，其实我们也可以站在Node的角度上，通过在Node上添加污点属性，来决定是否允许Pod调度进来。
+
+Node被设置上污点之后就和Pod之间存在一种相斥的关系，进而拒绝Pod调度进来，甚至可以将已经存在的Pod驱逐出去。
+
+污点的格式为:key=value:effect,key和value是污点的标签，effect描述污点的作用，支持如下三个选项:
+
+- PreferNoSchedule
+
+  K8s将尽量避免把Pod调度到具有该污点的Node上，除非没有其他节点可调度
+
+- NoSchedule
+
+  K8s将不会把Pod调度到具有该污点的Node上，但不是影响当前Node上已存在的Pod
+
+- NoExecute
+
+  K8s将不会把Pod调度到具有该污点的Node上，同时也会将Node上已存在的Pod驱离
+
+![image-20210704092409000](images/image-20210704092409000.png)
+
+使用kubectl设置和去除污点的命令示例如下:
+
+```bash
+# 设置污点
+kubectl taint nodes node1 key=value:effect
+# 去除污点
+kubectl taint nodes node1 key:effect-
+# 去除所有污点
+kubectl taint nodes node1 key-
+```
+
+**小提示：**
+
+使用kubeadm搭建的集群，默认就会给master节点添加一个污点标记，所以pod就不会调度到master节点上
 
 
+
+容忍(Toleration)
+
+上面介绍了污点的作用，可以在node上添加污点用于拒绝pod调度上来，但是如果就是想将一个pod调度到一个有污点的node上去，这时候该怎么办呢？这就要用到容忍
+
+![image-20210704093911013](images/image-20210704093911013.png)
+
+> 污点就是拒绝，容忍就是忽略，node通过污点拒绝pod调度上去，pod通过容忍忽略拒绝
+
+
+
+下面是容忍的详细配置：
+
+![image-20210704095110997](images/image-20210704095110997.png)
+
+
+
+# 6. Pod控制器详解
+
+## 6.1 Pod控制器介绍
+
+在K8s中，按照pod的创建方式可以将其分为两类：
+
+- 自主式pod
+
+  K8s直接创建出来的pod，这种pod删除后就没有了，也不会重建
+
+- 控制器创建的pod
+
+  通过控制器创建的pod，这种pod删除了之后还会自动重建
+
+> 什么是pod控制器
+>
+> pod控制器是管理pod的中间层，使用了pod控制器之后，我们只需要告诉pod控制器想要多少个什么样的pod就可以了，它就会创建出满足条件的pod并确保每一个pod处于用户期望的状态，如果pod在运行中出现故障，控制器会基于指定策略重启或者重建pod
+
+在K8s中，有很多类型的pod控制器，每种都有自己的适合的场景，常见的有下面这些：
+
+- ReplicationController
+
+  比较原始的pod控制器，已经被废弃，由ReplicaSet替代
+
+- ReplicaSet
+
+  保证指定数量的pod运行，并支持pod数量变更，镜像版本变更
+
+- Deployment
+
+  通过控制ReplicaSet控制pod，并支持滚动升级、版本回退
+
+- Horizontal Pod Autoscaler
+
+  可以根据集群负载均衡自动调整pod的数量，实现削峰填谷
+
+- DaemonSet
+
+  在集群中的指定Node上都运行一个副本，一般用于守护进程类的任务
+
+- Job
+
+  创建出来的pod只要完成任务就立即退出，用于执行一次性任务
+
+- CronJob
+
+  创建的pod会周期性地执行，用于执行周期性任务
+
+- StatefulSet
+
+  管理有状态应用
+
+## 6.2 ReplicaSet(RS)
+
+ReplicaSet的主要作用是保证一定数量的pod能够正常运行，它会持续监听这些pod的运行状态，一旦pod发生故障，就会重启或重建。同时它还支持对pod数量的扩缩容和版本镜像的升级
+
+![image-20210704105622396](images/image-20210704105622396.png)
+
+ReplicaSet的资源清单文件:
+
+![image-20210704105825122](images/image-20210704105825122.png)
+
+![image-20210704110212844](images/image-20210704110212844.png)
+
+**扩缩容**
+
+![image-20210704110242884](images/image-20210704110242884.png)
+
+![image-20210704110421322](images/image-20210704110421322.png)
+
+![image-20210704110632375](images/image-20210704110632375.png)
+
+![image-20210704110822219](images/image-20210704110822219.png)
+
+
+
+## 6.3 Deployment
+
+为了更好地解决服务编排问题，K8s在V1.2版本开始，引入了Deployment控制器。值得一提的是，这种控制器并不直接管理pod，而是通过管理ReplicaSet来间接管理pod，即:Deployment管理ReplicaSet,ReplicaSet管理pod。所以Deployment比ReplicaSet功能更加强大
+
+![image-20210704111259215](images/image-20210704111259215.png)
+
+Deployment主要功能有下面几个:
+
+- 支持ReplicaSet的所有功能
+- 支持发布的停止、继续
+- 支持版本滚动升级和版本回退
+
+Deployment的资源清单文件:
+
+![image-20210704111539382](images/image-20210704111539382.png)
+
+![image-20210704111738443](images/image-20210704111738443.png)
+
+![image-20210704111832477](images/image-20210704111832477.png)
+
+![image-20210704112203080](images/image-20210704112203080.png)
+
+![image-20210704112352447](images/image-20210704112352447.png)
+
+![image-20210704112742480](images/image-20210704112742480.png)
+
+![image-20210704113032911](images/image-20210704113032911.png)
+
+![image-20210704113732223](images/image-20210704113732223.png)
+
+![image-20210704113939546](images/image-20210704113939546.png)
+
+![image-20210704114152951](images/image-20210704114152951.png)
+
+![image-20210704114543437](images/image-20210704114543437.png)
+
+## 6.4 Horizontal Pod Autoscaler(HPA)
+
+在之前可以通过手工执行kubectl scale命令实现pod扩容，但是这显然不符合K8s的目标定位--自动化、智能化。K8s期望可以通过监测pod的使用情况，实现pod数量的自动调整，于是就产生了HPA这种控制器。
+
+HPA可以获取每个pod利用率然后和HAP中定义的指标进行对比，同时计算出需要伸缩的具体值，最后实现pod的数量的调整。其实HPA与之前的Deployment一样，也属于一种K8s资源对象，它通过追踪分析目标pod的负载变化情况，来确定是否需要针对性地调整目标pod的副本数。
+
+![image-20210704141751872](images/image-20210704141751872.png)
+
+
+
+![image-20210704142110642](images/image-20210704142110642.png)
+
+![image-20210704142602160](images/image-20210704142602160.png)
+
+
+
+![image-20210704142840602](images/image-20210704142840602.png)
+
+
+
+![image-20210704142152372](images/image-20210704142152372.png)
+
+![image-20210704143319846](images/image-20210704143319846.png)
+
+
+
+![image-20210704142215453](images/image-20210704142215453.png)
+
+
+
+## 6.5 DaemonSet(DS)
+
+DaemonSet类型的控制器可以保证集群中的每一台(或指定)节点上都运行一个副本，一般适用于日志收集、节点监控等场景。也就是说，如果一个pod提供的功能是节点级别的(每个节点都需要且只需要一个)，那么这类pod就适合使用DaemonSet类型的控制器创建
+
+![image-20210704144348341](images/image-20210704144348341.png)
+
+DaemonSet控制器的特点:
+
+- 每当向集群中添加一个节点时，指定的pod副本也将添加到该节点上
+- 当节点从集群中移除时，pod也就被垃圾回收了
+
+下面是DaemonSet的资源清单文件
+
+![image-20210704144653305](images/image-20210704144653305.png)
+
+![image-20210704144732794](images/image-20210704144732794.png)
+
+![image-20210704144741802](images/image-20210704144741802.png)
+
+![image-20210704144923628](images/image-20210704144923628.png)
+
+## 6.6 Job
+
+主要用于负责批量处理短暂的一次性任务，特点如下:
+
+- 当Job创建的pod执行成功时，Job将记录成功结束的pod数量
+- 当成功结束的pod达到指定的数量时，Job将完成执行 
+
+![image-20210704145143042](images/image-20210704145143042.png)
+
+Job的资源清单文件:
+
+![image-20210704145327934](images/image-20210704145327934.png)
+
+![image-20210704145713241](images/image-20210704145713241.png)
+
+![image-20210704145722768](images/image-20210704145722768.png)
+
+![image-20210704145939945](images/image-20210704145939945.png)
+
+![image-20210704150334878](images/image-20210704150334878.png)
+
+
+
+## 6.7 CronJob
+
+CronJob控制器以Job控制器资源为其管控对象，并借助它管理pod资源对象，Job控制器定义的作业任务在其控制器资源创建之后便会立即执行，但CronJob可以以类似Linux操作系统的周期性任务作业计划的方式控制其运行时间点及重复运行的方式。也就是说，CronJob可以在特定的时间点(反复的)去运行Job任务
+
+![image-20210704150802892](images/image-20210704150802892.png)
+
+CronJob的资源清单文件:
+
+![image-20210704151118318](images/image-20210704151118318.png)
+
+
+
+![image-20210704151101090](images/image-20210704151101090.png)
+
+![image-20210704151516031](images/image-20210704151516031.png)
+
+## 6.8 StatefulSet
+
+
+
+# 7. Service详解
+
+## 7.1 Service介绍
+
+在K8s中，pod是应用程序的载体，可以通过pod的ip来访问应用程序，但是pod的ip地址不是固定的，这也就意味着不方便直接采用pod的ip对服务进行访问。
+
+为了解决这个问题，K8s提供了Service资源，Service会对提供同一个服务的多个pod进行聚合，并且提供一个统一的入口地址。通过访问Service的入口地址就能访问到后面的pod服务
+
+![image-20210704152215229](images/image-20210704152215229.png)
+
+Service在很多情况下只是一个概念，真正起作用的其实是kube-proxy服务进程，每个node节点上都运行着一个kube-proxy服务进程。当创建Service的时候会通过api-server向etcd写入创建时的service的信息，而kube-proxy会基于监听的机制发现这种Service的变动，然后它会将最新的Service信息转换成对应的访问规则。
+
+![image-20210704152602963](images/image-20210704152602963.png)
+
+![image-20210704152723859](images/image-20210704152723859.png)
+
+kube-proxy目前支持3中工作模式：
+
+**userspace模式**
+
+userspace模式下，kube-proxy会为每一个Service创建一个监听端口，发现Cluster IP的请求被Iptables规则重定向到kube-proxy监听的端口上，kube-proxy根据LB算法选择一个提供服务的Pod并和其建立连接，以将请求转发到pod上。
+
+该模式下，kube-proxy充当了一个四层负载均衡器的角色。由于kube-proxy运行在userspace中，在进行转发处理时会增加内核和用户空间之间的数据拷贝，虽然比较稳定，但是效率比较低。
+
+![image-20210704153434355](images/image-20210704153434355.png)
+
+**iptables 模式**
+
+iptables模式下，kube-proxy为service后端的每个pod创建对应的iptables规则，直接将发往Cluster IP的请求重定向到一个Pod IP。
+
+该模式下kube-proxy不承担四层负载均衡器的角色，只负责创建iptables规则。该模式的优点是较userspace模式效率更高，但不能提供灵活的LB策略，当后端Pod不可用时也无法进行重试。
+
+![image-20210704154011634](images/image-20210704154011634.png)
+
+**ipvs模式**
+
+ipvs模式和iptables类似，kube-proxy监控pod的变化并创建相应的ipvs规则。ipvs相对iptables转发效率更高，除此以外，ipvs支持更过的LB算法。
+
+![image-20210704154156792](images/image-20210704154156792.png)
+
+
+
+![image-20210704154728770](images/image-20210704154728770.png)
+
+
+
+## 7.2 Service类型
+
+Service的资源清单文件:
+
+![image-20210704155014273](images/image-20210704155014273.png)
+
+## 7.3 Service的使用
+
+### 7.3.1 实验环境准备
+
+![image-20210704155522255](images/image-20210704155522255.png)
+
+### 7.3.2 ClusterIP类型的Service
+
+![image-20210704160026510](images/image-20210704160026510.png)
+
+
+
+**Endpoint**
+
+Endpoint是K8s中的一个资源对象，存储在etcd中，用来记录一个service对应的所有pod的访问地址，它是根据service配置文件中selector描述产生的。
+
+一个service由一组pod组成，这些pod通过Endpoints暴露出来，Endpoints是实现实际服务的端点集合，换句话说，service和pod之间的联系是通过endpoints实现的。
+
+![image-20210704170853195](images/image-20210704170853195.png)
+
+
+
+**负载分发策略**
+
+对service的访问被分发到了后端的pod上去，目前K8s提供了两种负载分发策略:
+
+- 如果不定义，默认使用kube-proxy的策略，比如随机、轮询
+- 基于客户端地址的会话保持模式，即来自同一个客户端发起的请求都会转发到固定的一个pod上，此模式可以在spec中添加`sessionAffinity:ClientIP`选项
+
+![image-20210704171626021](images/image-20210704171626021.png)
+
+### 7.3.3 HeadLiness类型的Service
+
+在某些场景，开发人员可能不想使用Service提供的负载均衡功能，而希望自己来控制负载均衡策略，针对这种情况，K8s提供了HeadLiness Service，这类Service不会分配ClusterIP,如果想要访问service，只能通过service的域名进行查询
+
+![image-20210704172246446](images/image-20210704172246446.png)
+
+### 7.3.4 NodePort类型的Service
+
+在之前的样例中，创建的Service的ip地址只有集群内部才可以访问，如果希望将Service暴露给集群外部使用，那么就要使用另外一种类型的Service，称为NodePort类型。NodePort的工作原理其实就是将service的端口映射到Node的一个端口上，然后就可以通过NodeIP:NodePort来访问service了
+
+![image-20210704181012114](images/image-20210704181012114.png)
+
+![image-20210704181154705](images/image-20210704181154705.png)
+
+### 7.3.5 LoadBalancer类型的Service
+
+LoadBalancer和NodePort很相似，目的都是向外部暴露一个端口，区别在于LoadBalancer会在集群的外部再来做一个负载均衡设备，而这个设备是需要外部环境支持的，外部服务发送到这个设备上的请求，会被设备负载之后转发到集群中。
+
+![image-20210704181739185](images/image-20210704181739185.png)
+
+
+
+### 7.3.5 ExternalName类型的Service
+
+ExternalName类型的Service用于引入集群外部的服务，它通过externalName属性指定外部一个服务的地址，然后在集群内部访问此service就可以访问到外部的服务了。
+
+![image-20210704182116829](images/image-20210704182116829.png)
+
+![image-20210704182127021](images/image-20210704182127021.png)
+
+## 7.4 Ingress介绍
+
+Service对集群之外暴露服务的主要方式有两种:NodePort和LoadBalancer，但是这两种方式都有一定的缺点:
+
+- NodePort方式的缺点是会占用很多集群机器的端口，那么当集群服务变多的时候，这个缺点就愈发明显
+- LB方式的缺点是每个service需要一个LB，浪费、麻烦，并且需要K8s之外设备的支持
+
+基于这种现状，K8s提供了Ingress资源对象，Ingress只需要一个NodePort或者一个LB就可以满足暴露多个Service的需求。工作机制大致如下如所示:
+
+![image-20210704182929062](images/image-20210704182929062.png)
+
+实际上，Ingress相当于一个7层的负载均衡器，是K8s对反向代理的一个抽象，它的工作原理类似于Nginx，可以理解成在Ingress里建立诸多映射规则，Ingress Controller通过监听这些配置并转化成Nginx的配置，然后对外部提供服务。在这里有两个核心概念:
+
+- ingress
+
+  K8s中的一个对象，作用是定义请求如何转发到service的规则
+
+- ingress controller
+
+  具体实现反向代理及负载均衡的程序，对ingress定义的规则进行解析，根据配置的规则来实现请求转发，实现方式有很多，比如Nginx,Contour,Haproxy等
+
+Ingress(以Nginx为例)的工作原理如下:
+
+1. 用户编写Ingress规则，说明哪个域名对应K8s集群中的哪个Service
+2. Ingress控制器动态感知Ingress服务规则的变化，然后生成一段对应的Nginx配置
+3. Ingress控制器会将生成的Nginx配置写入到一个运行着的Nginx服务中，并动态更新
+4. 到此为止，其实真正在工作的就是一个Nginx了，内部配置了用户定义的请求转发规则
+
+![image-20210704184104266](images/image-20210704184104266.png)
+
+
+
+## 7.5 Ingress使用
+
+### 7.5.1 环境准备
+
+**搭建ingress环境**
+
+![image-20210704184441297](images/image-20210704184441297.png)
+
+![image-20210704184640156](images/image-20210704184640156.png)
+
+
+
+
+
+**准备service和pod**
+
+为了后面的实验比较方便，创建如下图所示的模型
+
+![image-20210704184605227](images/image-20210704184605227.png)
+
+![image-20210704185249014](images/image-20210704185249014.png)
+
+![image-20210704185305867](images/image-20210704185305867.png)
+
+![image-20210704185329522](images/image-20210704185329522.png)
+
+### 7.5.2 Http代理
+
+![image-20210704185538987](images/image-20210704185538987.png)
+
+### 7.5.3 Https代理
+
+![image-20210704190603158](images/image-20210704190603158.png)
+
+
+
+![image-20210704190540095](images/image-20210704190540095.png)
+
+![image-20210704190743662](images/image-20210704190743662.png)
+
+
+
+# 8. 数据存储
+
+容器的生命周期很短，会被频繁的创建和销毁。为了持久化容器中的数据，K8s引入了Volume的概念
+
+Volume是Pod中能够被多个容器访问的共享目录，它被定义在Pod上，然后被一个Pod里的多个容器挂载到具体的文件目录下，K8s通过Volume实现同一个Pod中不同容器之间的数据共享以及数据的持久化存储。
+
+Volume的生命周期不与pod中单个容器的生命周期相关，当容器终止或者重启时，Volume中的数据也不会丢失。
+
+K8s的Volume支持多种类型，比较常见的有下面几个:
+
+- 简单存储
+
+  EmptyDir、HostPath、NFS
+
+- 高级存储
+
+  PV、PVC
+
+- 配置存储
+
+  ConfigMap、Secret
+
+## 8.1 基本存储
+
+### 8.1.1 EmptyDir
+
+EmptyDir是最基础的Volume类型，一个EmptyDir就是Host上的一个空目录。
+
+EmptyDir是在Pod分配到Node时创建的，它的初始内容为空，并且无须指定宿主机上对应的目录文件，因为K8s会自动分配一个目录，当Pod销毁时，EmptyDir中的数据也会被永久删除。EmptyDir用途如下:
+
+- 临时空间
+
+  例如用于某些应用程序运行时所需的临时目录，且无须永久保留
+
+- 多容器共享目录
+
+  一个容器需要从另一个容器中获取数据的目录
+
+下面通过一个容器之间文件共享的案例来使用一下EmptyDir
+
+在一个Pod中准备两个容器nginx和busybox，然后声明一个Volume分别挂载在两个容器的目录中，然后nginx容器负责向Volume中写日志，busybox中通过命令将日志内容读到控制台
+
+![image-20210704192806112](images/image-20210704192806112.png)
+
+![image-20210704192946820](images/image-20210704192946820.png)
+
+### 8.1.2 HostPath
+
+EmptyDir中的数据不会被持久化，它会随着Pod的结束而销毁，如果想简单的将数据持久化到主机中，可以选择HostPath
+
+HostPath就是将Node主机中一个实际目录挂载到Pod中，以供容器使用，这样的设计就可以保证Pod销毁了，但是数据依旧可以存在于Node主机上。
+
+![image-20210704193735812](images/image-20210704193735812.png)
+
+![image-20210704194015227](images/image-20210704194015227.png)
+
+![image-20210704194056003](images/image-20210704194056003.png)
+
+### 8.1.3 NFS
+
+HostPath可以解决数据持久化的问题，但是一旦Node节点故障了，Pod如果转移到了别的节点，又会出现问题了，此时需要准备单独的网络存储系统，比较常用的有NFS、CIFS
+
+NFS是一个网络文件存储系统，可以搭建一台NFS服务器，然后将Pod中的存储直接连接到NFS系统上，这样的话，无论Pod在节点上怎么转移，只要node跟NFS的对接没问题，数据就可以成功访问。
+
+![image-20210704194826513](images/image-20210704194826513.png)
+
+![image-20210704195127803](images/image-20210704195127803.png)
+
+![image-20210704195141352](images/image-20210704195141352.png)
+
+![image-20210704195401651](images/image-20210704195401651.png)
+
+![image-20210704195536171](images/image-20210704195536171.png)
+
+
+
+## 8.2 高级存储
+
+
+
+### 8.2.1 PV和PVC
+
+使用NFS来进行存储要求用户会搭建NFS系统，并且会在Yaml中配置NFS。由于K8s支持的存储系统有很多，要求用户全部掌握显然不现实。为了能够屏蔽底层存储实现的细节，方便用户使用，K8s引入PV和PVC两种资源对象
+
+PV(Persistent Volume)是持久化卷的意思，是对底层的共享存储的一种抽象。一般情况下PV由K8s管理员进行创建和配置，它与底层具体的共享存储技术有关，并通过插件完成与共享存储的对接
+
+PVC(Persistent Volume Claim)是持久化卷声明的意思，是用户对于存储需求的一种声明。换句话说，PVC其实就是用户向K8s系统发出的一种资源需求申请。
+
+![image-20210704202415241](images/image-20210704202415241.png)
+
+使用了PV和PVC之后，工作可以得到进一步的细分:
+
+- 存储
+
+  存储工程师维护
+
+- PV
+
+  K8s管理员维护
+
+- PVC
+
+  K8s用户维护
+
+### 8.2.2 PV
+
+PV作为存储资源，主要包括存储能力、访问模式、存储类型、回收策略等关键信息的设置。下面是资源清单文件:
+
+![image-20210704203334734](images/image-20210704203334734.png)
+
+PV的关键配置参数说明:
+
+- 存储类型
+
+  底层实际存储的类型，K8s支持多种存储类型，每种存储类型的配置都有所差异
+  
+- 存储能力(capacity)
+
+  目前只支持存储空间的设置(storage=1Gi),不过未来可能会加入IOPS、吞吐量等指标的配置
+
+- 访问模式(accessModes)
+
+  用于描述用户应用对存储资源的访问权限，访问权限包括下面几种方式:
+
+  - ReadWriteOnce(RWO)
+
+    读写权限，但是只能被单个节点挂载
+
+  - ReadOnlyMany(ROX)
+
+    只读权限，可以被多个节点挂载
+
+  - ReadWriteMany(RWX)
+
+    读写权限，可以被多个节点挂载
+
+  需要注意的是，底层不同的存储类型可能支持的访问模式不同
+
+- 回收策略
+
+  当PV不再使用之后，对其处理方式目前支持3种策略
+
+  - Retain(保留)
+
+    保留数据，需要管理员手动清理数据
+
+  - Recycle(回收)
+
+    清除PV中的数据，效果相当于执行`rm -rf /thevolume/*`
+
+  - Delete(删除)
+
+    与PV相连的后端存储完成volume的删除操作，当然这常见于云服务商的存储服务
+
+  需要注意的是，底层不同的存储类型可能支持的回收策略不同
+
+- 存储类别
+
+  PV可以通过storageClassName参数指定一个存储类别
+
+  - 具有特定类别的PV只能与请求了该类别的PVC进行绑定
+  - 未设定类别的PV则只能与不请求任何类别的PVC进行绑定
+
+- 状态(status)
+
+  一个PV的生命周期中，可能会处于4中不同的阶段:
+
+  - Available(可用)
+
+    表示可用状态，还未被任何PVC绑定
+
+  - Bound(已绑定)
+
+    表示PV已经被PVC绑定
+
+  - Released(已释放)
+
+    表示PVC被删除，但是资源还未被集群重新声明
+
+  - Failed(失败)
+
+    表示该PV的自动回收失败
+
+**实验**
+
+使用NFS作为存储来演示PV的使用，创建3个PV,对应NFS中的3个暴露的路径
+
+![image-20210705084347150](images/image-20210705084347150.png)
+
+![image-20210705084410718](images/image-20210705084410718.png)
+
+![image-20210705084421634](images/image-20210705084421634.png)
+
+### 8.2.3 PVC
+
+PVC是资源的申请，用来声明对存储空间、访问模式、存储类别需求信息。下面是资源清单文件:
+
+![image-20210705084726316](images/image-20210705084726316.png)
+
+PVC的关键配置参数说明:
+
+- 访问模式(accessModes)
+
+  用于描述用户应用对存储资源的访问权限
+
+- 选择条件(selector)
+
+  通过Label Selector的设置，可使PVC对于系统中已存在的PV进行筛选
+
+- 存储类别(storageClassName)
+
+  PVC在定义时可以设定需要的后端存储的类别，只有设置了该class的PV才能被系统选出
+
+- 资源请求(Resources)
+
+  描述对存储资源的请求
+
+**实验**
+
+![image-20210705085223190](images/image-20210705085223190.png)
+
+
+
+### 8.2.4 生命周期
+
+PVC和PV是一一对应的，PV和PVC之间的相互作用遵循一下生命周期:
+
+- 资源供应
+
+  管理员手动创建底层存储和PV
+
+- 资源绑定
+
+  用户创建PVC,K8s负责根据PVC的声明去寻找PV,并绑定
+
+  在用户定义好PVC之后，系统将根据PVC对存储资源的请求在已存在的PV中选择一个满足条件的
+
+  - 一旦找到就将该PV与用户定义的PVC进行绑定，用户的应用就可以使用这个PVC了
+  - 如果找不到，PVC则会无限期处于Pending状态，直到等到系统管理员创建了一个符合其要求的PV
+
+  PV一旦绑定到某个PVC上就会被这个PVC独占，不能再与其他PVC进行绑定了
+
+- 资源使用
+
+  用户可在pod中像volume一样使用pvc
+
+  Pod使用Volume的定义，将PVC挂载到容器内的某个路径进行使用
+
+- 资源释放
+
+  用户删除PVC来释放PV
+
+  当存储资源使用完毕后，用户可以删除PVC,与该PVC绑定的PV将会被标记为"已释放"，但还不能立刻与其他PVC进行绑定。通过之前的PVC写入的数据可能还被保留在存储设备上，只有在清除之后该PV才能再次使用
+
+- 资源回收
+
+  K8s根据PV设置的回收策略进行资源的回收
+
+  对于PV,管理员可以设定回收策略，用于设置与之绑定的PVC释放资源之后如何处理遗留数据的问题，只有PV的存储空间完成回收，才能供新的PVC绑定和使用
+
+![image-20210705091644235](images/image-20210705091644235.png)
+
+## 8.3 配置存储
+
+### 8.3.1 ConfigMap
+
+ConfigMap是一种比较特殊的存储卷，它的主要作用是用来存储配置信息的
+
+![image-20210705092013753](images/image-20210705092013753.png)
+
+![image-20210705092207401](images/image-20210705092207401.png)
+
+
+
+![image-20210705092147071](images/image-20210705092147071.png)
+
+![image-20210705092354984](images/image-20210705092354984.png)
+
+### 8.3.2 Secret
+
+在K8s中还存在一种和ConfigMap非常类似的对象，称为Secret对象。它主要用于存储敏感信息，例如密码、密钥、证书等等
+
+![image-20210705092705643](images/image-20210705092705643.png)
+
+![image-20210705093117859](images/image-20210705093117859.png)
+
+![image-20210705093127887](images/image-20210705093127887.png)
+
+![image-20210705093139549](images/image-20210705093139549.png)
+
+# 9. 安全认证
+
+## 9.1 访问控制概述
+
+K8s作为一个分布式集群的管理工具，保证集群的安全性是其一个重要的任务。所谓的安全性其实就是保证对K8s的各种客户端进行认证和鉴权操作。
+
+**客户端**
+
+在K8s集群中，客户端通常有两类:
+
+- User Account
+
+  一般是独立于K8s之外的其他服务管理的用户账号
+
+- Service Account
+
+  K8s管理的账号，用于为pod中的服务进程在访问K8s时提供身份标识。
+
+![image-20210705093849263](images/image-20210705093849263.png)
+
+**认证、授权与准入控制**
+
+ApiServer是访问及管理资源对象的唯一入口。任何一个请求访问ApiServer，都要经过下面三个流程:
+
+- Authentication(认证)
+
+  身份鉴别，只有正确的账号才能通过认证
+
+- Authorization(授权)
+
+  判断用户是否有权限对访问的资源指定特定的操作
+
+- Admission Control(准入控制)
+
+  用于补充授权机制以实现更加精细的访问控制功能
+
+![image-20210705094316074](images/image-20210705094316074.png)
+
+## 9.2 认证管理
+
+K8s集群安全的最关键点在于如何识别并认证客户端身份，它提供了3种客户端身份认证方式:
+
+- HTTP Base认证:通过用户名+密码的方式认证
+
+  这种认证方式是把"用户名:密码"用BASE64算法进行编码后的字符串放在HTTP请求中的Header Authorization域里发送给服务端。服务端接收到后进行解码，获取用户名及密码，然后进行用户身份认证的过程
+
+- HTTP Token认证:通过一个Token来识别合法用户
+
+  这种认证方式是用一个很长的难以被模仿的字符串--Token来表明客户身份的一种方式。每个Token对应一个用户名，当客户端发起API调用请求时，需要在HTTP Header里放入Token，API Server接到Token后会跟服务器中保存的token进行比对，然后进行用户身份认证的过程
+
+- HTTPS证书认证:基于CA根证书签名的双向数字证书认证方式
+
+  这种认证方式是安全性最高的一种方式，但是同时也是操作起来最麻烦的一种方式
+
+![image-20210705095857757](images/image-20210705095857757.png)
+
+HTTPS认证大体分为3个过程:
+
+1. 证书申请和下发
+
+   HTTPS通信双方的服务器向CA机构申请证书，CA机构下发根证书、服务端证书以及私钥给申请者
+
+2. 客户端和服务端双向认证
+
+   - 客户端向服务器发发起请求，服务端下发自己的证书给客户端，客户端接收到证书后，通过私钥解密证书，在证书中获得服务端的公钥，客户端利用服务器端的公钥认证证书中的信息，如果一致，则认可这个服务器
+   - 客户端发送自己的证书给服务器端，服务端接收到证书后，通过私钥解密证书，在证书中获得客户端的公钥，并用该公钥认证证书信息，确认客户端是否合法。
+
+3. 服务器端和客户端进行通信
+
+   服务器端和客户端协商好加密方案后，客户端会产生一个随机的密钥并加密，然后发送给服务器端。服务器端接收这个密钥后，双方接下来通信的所有内容都通过该随机密钥加密。
+
+> 注意：K8s允许同时配置多种认证方式，只要其中一个方式认证通过即可
+
+
+
+## 9.3 授权管理
+
+授权发生在认证成功之后，通过认证就可以知道请求用户是谁，然后K8s会根据事先定义的授权策略来决定用户是否有权限访问，这个过程就称为授权。
+
+每个发送到ApiServer的请求都带上了用户和资源的信息:比如发送请求的用户、请求的路径、请求的动作等，授权就是根据这些信息和授权策略进行比较，如果符合策略，则认为授权通过，否则会返回错误。
+
+API Server目前支持以下几种授权策略:
+
+- AlwaysDeny
+
+  表示拒绝所有请求，一般用于测试
+
+- AlwaysAllow
+
+  允许接收所有请求，相当于集群不需要授权(K8s默认的策略)
+
+- ABAC
+
+  基于属性的访问控制，表示使用用户配置的授权规则对用户请求进行匹配和控制
+
+- Webhook
+
+  通过调用外部REST服务对用户进行授权
+
+- Node
+
+  是一种专用模式，用于对kubelet发出的请求进行访问控制
+
+- RBAC
+
+  基于角色的访问控制(kubeadm安装方式下的默认选项)
+
+  RBAC(Role-Based Access Control)基于角色的访问控制，主要是在描述一件事情:给哪些对象授予了哪些权限
+
+  其中涉及到了下面几个概念:
+
+  - 对象:User、Group、ServiceAccount
+  - 角色:代表着一组定义在资源上的可操作动作(权限)的集合
+  - 绑定:将定义好的角色跟用户绑定在一起
+
+  ![image-20210705102420061](images/image-20210705102420061.png)
+
+  
+
+RBAC引入了4个顶级资源对象:
+
+- Role、ClusterRole:角色，用于指定一组权限
+- RoleBinding、ClusterRoleBinding:角色绑定，用于将角色(权限)赋予给对象
+
+**Role、ClusterRole**
+
+一个角色就是一组权限的集合，这里的权限都是许可形式的(白名单)
+
+![image-20210705103010611](images/image-20210705103010611.png)
+
+![image-20210705103122868](images/image-20210705103122868.png)
+
+**RoleBinding、ClusterRoleBinding**
+
+角色绑定用来把一个角色绑定到一个目标对象上，绑定目标可以是User、Group或者ServiceAccount
+
+![image-20210705103318930](images/image-20210705103318930.png)
+
+![image-20210705103415790](images/image-20210705103415790.png)
+
+RoleBinding引用ClusterRole进行授权
+
+RoleBinding可以引用ClusterRole，对属于同一个命名空间内ClusterRole定义的资源主体进行授权
+
+> 一种常用的做法就是，集群管理员为集群范围预定义好一组角色(ClusterRole),然后在多个命名空间中重复使用这些ClusterRole。这样可以大幅提高授权管理工作效率，也使得各个命名空间下的基础性授权规则与使用体验保持一致
+
+![image-20210705104202444](images/image-20210705104202444.png)
+
+**实战：创建一个只能管理dev空间下Pods资源的账号**
+
+![image-20210705104436721](images/image-20210705104436721.png)
+
+![image-20210705115105885](images/image-20210705115105885.png)
+
+![image-20210705120211118](images/image-20210705120211118.png)
+
+![image-20210705120333936](images/image-20210705120333936.png)
+
+## 9.4 准入控制
+
+通过了前面的认证和授权之后，还需要经过准入控制处理通过之后，apiserver才会处理这个请求。
+
+准入控制是一个可配置的控制器列表，可以通过在Api-Server上通过命令行设置选择执行哪些准入控制器
+
+![image-20210705120758311](images/image-20210705120758311.png)
+
+只有当所有的准入控制器都检查通过之后，apiserver才执行该请求，否则返回拒绝
+
+当前可配置的Admission Control准入控制如下:
+
+- AlwaysAdmit
+
+  允许所有请求
+
+- AlwaysDeny
+
+  禁止所有请求，一般用于测试
+
+- AlwaysPullImages
+
+  在启动容器之前总去下载镜像
+
+- DenyExecOnPrivileged
+
+  它会拦截所有想在Privileged Container上执行命令的请求
+
+- ImagePolicyWebhook
+
+  这个插件将允许后端的一个Webhook程序来完成admission controller的功能
+
+- Service Account
+
+  Service Account实现了自动化
+
+- SecurityContextDeny
+
+  这个插件将使SecurityContext的Pod中的定义全部失效
+
+- ResourceQuota
+
+  用于资源配额管理，观察所有请求，确保在namespace上的配额不会超标
+
+- LimitRanger
+
+  用于资源限制管理，作用于namespace上，确保对Pod进行资源限制
+
+- InitialResources
+
+  为未设置资源请求与限制的pod，根据其镜像的历史资源的使用情况进行设置
+
+- NamespaceLifecycle
+
+  如果尝试在一个不存在的namespace中创建资源对象，则该创建请求将被拒绝。当删除一个namespace时，系统将会删除该namespace中所有对象
+
+- DefaultStorageClass
+
+  为了实现共享存储的动态供应，为未指定StorageClass或PV的PVC尝试匹配默认的StorageClass，尽可能减少用户在申请PVC时所需了解的后端存储细节
+
+- DefaultTolerationSeconds
+
+  这个插件为那些没有设置forgiveness tolerations并具有notready:NoExecute和unreachable:NoExecute两种taints的Pod设置默认的"容忍"时间，为5min
+
+- PodSecurityPolicy
+
+  这个插件用于在创建或修改Pod时决定是否根据Pod的security context和可用的PodSecurityPolicy的安全策略进行控制
+
+# 10. DashBoard
+
+之前在K8s中完成的所有操作都是通过命令行工具kubectl完成的。其实，为了提供更丰富的用户体验，K8s还开发了一个基于web的用户界面(Dashboard)。用户可以使用Dashboard部署容器化的应用，还可以监控应用的状态，执行故障排查以及管理K8s中各种资源
+
+## 10.1 部署Dashboard
+
+![image-20210705122845621](images/image-20210705122845621.png)
+
+![image-20210705122856768](images/image-20210705122856768.png)
+
+![image-20210705122919579](images/image-20210705122919579.png)
 
 
 
