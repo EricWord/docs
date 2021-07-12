@@ -620,7 +620,31 @@ Rest风格支持:
 
 
 
-该看48
+
+
+## 9.6 拦截器原理
+
+1. 根据当前请求找到HandlerExecutionChain【可以处理请求的handler以及handler的所有拦截器】
+2. 先来顺序执行所有拦截器的preHandle方法
+   - 如果当前拦截器preHandler返回为true,则执行下一个拦截器的preHandler
+   - 如果当前拦截器返回为true，直接倒序执行已经执行了的拦截器 afterCompletion
+3. 如果任何一个拦截器返回false。直接跳出不执行目标方法
+4. 所有拦截器都返回true，执行目标方法
+5. 倒序执行所有拦截器的postHandle方法
+6. 前面的步骤有任何异常都会直接触发afterCompletion
+7. 页面成功渲染完成后也会倒序触发afterCompletion
+
+![image-20210712085040513](images/image-20210712085040513.png)
+
+
+
+## 9.7 文件上传
+
+### 9.7.1 页面表单
+
+该看50
+
+
 
   
 
